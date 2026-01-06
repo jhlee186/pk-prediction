@@ -554,7 +554,7 @@
                                 <div class="form-group">
                                     <label>부형제</label>
                                     <select value="${c.formulation}"
-                                            onchange="updateCompound(${c.id}, 'formulation', null, this.value); render();">
+                                            onchange="updateCompound(${c.id}, 'formulation', null, this.value);">
                                         ${Object.entries(formulationDB).map(([k, v]) => 
                                             `<option value="${k}">${v.label}</option>`
                                         ).join('')}
