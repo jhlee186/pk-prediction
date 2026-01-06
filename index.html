@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 기반 PK 예측 시스템 (DWP220496 보정)</title>
+    <title>범용 In Vitro → In Vivo PK 예측 시스템</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -12,46 +12,62 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh; padding: 20px;
         }
-        .container { max-width: 1600px; margin: 0 auto; }
+        .container { max-width: 1800px; margin: 0 auto; }
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px 12px 0 0; }
         .header h1 { font-size: 26px; margin-bottom: 8px; }
         .content { padding: 30px; }
         .section { background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 16px; }
         .section h2 { font-size: 16px; margin-bottom: 12px; color: #1f2937; font-weight: 600; }
+        .section h3 { font-size: 14px; margin-bottom: 8px; color: #4b5563; font-weight: 600; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
         .form-group label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; }
-        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
-        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .form-group label .req { color: #ef4444; }
+        .form-group label .opt { color: #10b981; font-weight: 400; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+        .form-group textarea { min-height: 60px; font-family: monospace; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
         .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; width: 100%; }
         .btn-secondary { background: #10b981; color: white; }
-        .alert { padding: 10px; border-radius: 6px; margin-bottom: 12px; border-left: 4px solid; font-size: 12px; }
+        .alert { padding: 10px; border-radius: 6px; margin-bottom: 12px; border-left: 4px solid; font-size: 12px; line-height: 1.6; }
         .alert-success { background: #d1fae5; border-color: #10b981; color: #065f46; }
         .alert-info { background: #dbeafe; border-color: #3b82f6; color: #1e40af; }
+        .alert-warning { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+        .alert-error { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
         .compound-item { background: white; padding: 16px; border-radius: 8px; border: 2px solid #e5e7eb; margin-bottom: 12px; }
-        .chart-container { height: 450px; margin-top: 16px; }
-        .comparison-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .chart-container { height: 500px; margin-top: 16px; }
+        .comparison-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 16px; }
         .comparison-table th, .comparison-table td { padding: 8px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        .comparison-table th { background: #f9fafb; font-weight: 600; }
+        .comparison-table th { background: #f9fafb; font-weight: 600; position: sticky; top: 0; }
         .badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
         .badge-blue { background: #dbeafe; color: #1e40af; }
         .badge-green { background: #d1fae5; color: #065f46; }
         .badge-purple { background: #e9d5ff; color: #6b21a8; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
         .color-indicator { width: 16px; height: 16px; border-radius: 4px; display: inline-block; }
         .step-indicator { display: flex; justify-content: center; gap: 16px; margin-bottom: 24px; }
         .step { padding: 8px 16px; border-radius: 16px; background: #e5e7eb; color: #6b7280; font-weight: 600; font-size: 13px; }
         .step.active { background: #4f46e5; color: white; }
         .info-box { background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 12px; }
-        .calibration-box { background: #d1fae5; border: 2px solid #10b981; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+        .help-box { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 8px; font-size: 11px; margin-top: 4px; }
         .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .route-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .route-btn { padding: 12px; border: 2px solid #e5e7eb; border-radius: 6px; cursor: pointer; text-align: center; font-size: 13px; font-weight: 600; transition: all 0.3s; }
+        .route-btn:hover { border-color: #4f46e5; }
+        .route-btn.selected { border-color: #4f46e5; background: #eff6ff; color: #4f46e5; }
+        .collapsible { cursor: pointer; padding: 12px; background: #e5e7eb; border-radius: 6px; margin-bottom: 8px; font-weight: 600; font-size: 13px; }
+        .collapsible:hover { background: #d1d5db; }
+        .collapsible-content { display: none; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 12px; }
+        .collapsible-content.active { display: block; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="card">
             <div class="header">
-                <h1>🧬 AI 기반 In Vitro → In Vivo PK 예측 시스템</h1>
-                <p style="font-size: 13px;">실험 데이터 보정 (DWP220496 Calibrated) | Salt Form 비교 분석</p>
+                <h1>🧬 범용 In Vitro → In Vivo PK 예측 시스템</h1>
+                <p style="font-size: 13px;">Salt Form 비교 분석 | 모든 화합물 적용 가능</p>
             </div>
 
             <div class="content">
@@ -67,44 +83,75 @@
     </div>
 
     <script>
-        // 실제 실험 데이터 (DWP220496)
-        const REFERENCE_DATA = {
-            mesylate: { cmax: 2837, tmax: 0.5, auc: 7907 },
-            tosylate: { cmax: 1270, tmax: 0.8, auc: 3790 },
-            freebase: { cmax: 387, tmax: 1.7, auc: 1324 }
-        };
-
-        // Salt Form 데이터베이스 (실험 보정)
-        const SALT_DATABASE = {
-            'freebase': { label: 'Free Base', mwCorrection: 1.0, supersat: 1.0, dissolution: 1.0, calibration: 1.0 },
-            'mesylate': { label: 'Mesylate Salt', mwCorrection: 0.81, supersat: 8.5, dissolution: 3.2, calibration: 5.97 },
-            'tosylate': { label: 'Tosylate Salt', mwCorrection: 0.70, supersat: 4.2, dissolution: 2.1, calibration: 2.86 },
-            'HCl': { label: 'HCl Salt', mwCorrection: 0.92, supersat: 6.0, dissolution: 2.8, calibration: 4.5 }
-        };
-
         let currentStep = 1, compounds = [], selectedSpecies = 'mouse', chartInstance = null, alerts = [];
-        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
         
         const speciesSettings = {
-            mouse: { bodyWeight: 0.025, Vd: 4.0, CL: 60, ka: 1.5, label: '🐭 Mouse (C57BL/6)', calibrated: true },
-            rat: { bodyWeight: 0.25, Vd: 3.5, CL: 50, ka: 1.2, label: '🐀 Rat', calibrated: false },
-            dog: { bodyWeight: 10, Vd: 2.0, CL: 25, ka: 0.8, label: '🐕 Dog', calibrated: false }
+            mouse: { bodyWeight: 0.025, Vd: 4.0, CL: 60, ka: 1.5, label: '🐭 Mouse' },
+            rat: { bodyWeight: 0.25, Vd: 3.5, CL: 50, ka: 1.2, label: '🐀 Rat' },
+            dog: { bodyWeight: 10, Vd: 2.0, CL: 25, ka: 0.8, label: '🐕 Dog (Beagle)' }
+        };
+
+        const formulationDB = {
+            'water': { label: '정제수', viscosity: 1, solFactor: 1.0, kaFactor: 1.0 },
+            '0.5% MC': { label: '0.5% MC', viscosity: 50, solFactor: 1.3, kaFactor: 0.85 },
+            '0.5% MC 4000cP': { label: '0.5% MC (4000 cP)', viscosity: 4000, solFactor: 1.5, kaFactor: 0.7 },
+            '0.2% Tween80 in 0.5% MC': { label: '0.2% Tween 80 in 0.5% MC', viscosity: 3800, solFactor: 2.8, kaFactor: 0.75 },
+            '0.5% CMC': { label: '0.5% CMC', viscosity: 100, solFactor: 1.4, kaFactor: 0.8 },
+            '1% Tween80': { label: '1% Tween 80', viscosity: 5, solFactor: 3.5, kaFactor: 0.95 },
+            'PEG400 30%': { label: '30% PEG 400', viscosity: 50, solFactor: 4.5, kaFactor: 1.0 },
+            'custom': { label: '직접 입력', viscosity: 1, solFactor: 1.0, kaFactor: 1.0 }
         };
 
         function addAlert(type, msg) { alerts.push({ type, msg }); renderAlerts(); }
         function clearAlerts() { alerts = []; renderAlerts(); }
         function renderAlerts() {
             document.getElementById('alerts').innerHTML = alerts.map(a => 
-                `<div class="alert alert-${a.type}"><strong>${a.type === 'success' ? '✅' : 'ℹ️'}</strong> ${a.msg}</div>`
+                `<div class="alert alert-${a.type}"><strong>${a.type === 'success' ? '✅' : a.type === 'error' ? '❌' : a.type === 'warning' ? '⚠️' : 'ℹ️'}</strong> ${a.msg}</div>`
             ).join('');
         }
 
         function addCompound() {
             compounds.push({
-                id: Date.now(), name: `물질 ${compounds.length + 1}`, saltForm: 'freebase',
-                solubility: { pH1_2: '', pH6_8: '', faSSIF: '', water: '' },
-                properties: { molecularWeight: '', logP: '', dose: '10', papp: '', hepClearance: '', proteinBinding: '' },
-                pkResult: null, color: colors[compounds.length % colors.length]
+                id: Date.now(),
+                name: `물질 ${compounds.length + 1}`,
+                
+                // 필수 항목
+                route: 'PO',
+                dose: '10',
+                molecularWeight: '',
+                pKa: '',
+                logP: '',
+                
+                // Salt form (자유 입력)
+                saltForm: 'Free base',
+                saltMW: '',
+                
+                // 용해도
+                solubility: { pH1_2: '', pH4_5: '', pH6_8: '', faSSIF: '', faSSGF: '', feSSIF: '', water: '' },
+                
+                // ADME
+                papp: '',
+                caco2: '',
+                permeability: 'medium',
+                proteinBinding: '',
+                fu: '',
+                hepClearance: '',
+                bloodPlasmaRatio: '',
+                
+                // 제형
+                formulation: '0.2% Tween80 in 0.5% MC',
+                customFormulation: '',
+                
+                // 고급 (선택)
+                particleSize_D50: '',
+                particleSize_D90: '',
+                crystallinity: 'crystalline',
+                dissolutionTest: '',
+                pgpSubstrate: 'unknown',
+                
+                pkResult: null,
+                color: colors[compounds.length % colors.length]
             });
             render();
         }
@@ -118,44 +165,144 @@
             else c[field] = value;
         }
 
+        // ==================== 고급 PK 계산 (범용) ====================
         function calculatePK(compound) {
-            const species = selectedSpecies, settings = speciesSettings[species];
-            const saltData = SALT_DATABASE[compound.saltForm];
+            const species = selectedSpecies;
+            const settings = speciesSettings[species];
+            const route = compound.route;
             
-            const mw = parseFloat(compound.properties.molecularWeight) || 400;
-            const logP = parseFloat(compound.properties.logP) || 2.5;
-            const dose = parseFloat(compound.properties.dose) || 10;
-            const papp = parseFloat(compound.properties.papp) || 15;
+            // 1. 기본 물성
+            const mw = parseFloat(compound.molecularWeight);
+            const logP = parseFloat(compound.logP) || 2.5;
+            const pKa = parseFloat(compound.pKa);
+            const dose = parseFloat(compound.dose);
             
-            const effectiveDose = dose * saltData.mwCorrection;
-            const baseSol = parseFloat(compound.solubility.faSSIF || compound.solubility.pH6_8) || 5;
-            const effectiveSol = baseSol * saltData.supersat * saltData.dissolution;
-            
-            const solLimited = Math.min(1, (effectiveSol * 20) / (mw * 0.05));
-            const permLimited = Math.min(1, papp / 12);
-            let Fa = solLimited * permLimited;
-            
-            const hepCL = parseFloat(compound.properties.hepClearance) || settings.CL * 0.4;
-            const Fh = 1 - (hepCL / (hepCL + settings.CL * 1.5));
-            let F = Fa * 0.92 * Fh;
-            
-            if (settings.calibrated) {
-                F = Math.min(0.95, F * saltData.calibration * 0.85);
+            if (!mw || !dose) {
+                addAlert('error', `${compound.name}: 분자량과 용량은 필수입니다.`);
+                return false;
             }
             
-            const fu = parseFloat(compound.properties.proteinBinding) ? (100 - parseFloat(compound.properties.proteinBinding)) / 100 : 0.05;
-            const Vd = settings.Vd * (1 + logP * 0.5) / Math.max(fu, 0.01);
-            const CL = (settings.CL * (400 / mw) * 0.8) + (hepCL * 0.2);
-            const ka = settings.ka * saltData.dissolution * 0.75;
+            // 2. Salt correction
+            const saltMW = parseFloat(compound.saltMW) || 0;
+            const freebaseMW = mw - saltMW;
+            const mwCorrection = freebaseMW / mw;
+            const effectiveDose = dose * mwCorrection;
+            
+            // 3. 용해도 계산 (pH 의존적)
+            const baseSol_pH1_2 = parseFloat(compound.solubility.pH1_2 || compound.solubility.faSSGF) || 1;
+            const baseSol_pH6_8 = parseFloat(compound.solubility.pH6_8 || compound.solubility.faSSIF) || 1;
+            
+            // Henderson-Hasselbalch 기반 ionization
+            let ionizationFactor_gastric = 1.0;
+            let ionizationFactor_intestinal = 1.0;
+            
+            if (pKa) {
+                // Base compound (약염기)
+                if (pKa > 7) {
+                    ionizationFactor_gastric = 1 / (1 + Math.pow(10, 1.2 - pKa)); // pH 1.2
+                    ionizationFactor_intestinal = 1 / (1 + Math.pow(10, 6.8 - pKa)); // pH 6.8
+                } 
+                // Acid compound (약산)
+                else {
+                    ionizationFactor_gastric = 1 / (1 + Math.pow(10, pKa - 1.2));
+                    ionizationFactor_intestinal = 1 / (1 + Math.pow(10, pKa - 6.8));
+                }
+            }
+            
+            // Salt supersaturation effect
+            let supersaturationRatio = 1.0;
+            if (compound.saltForm !== 'Free base' && saltMW > 0) {
+                supersaturationRatio = 3.0 + (saltMW / freebaseMW) * 5.0; // 경험식
+            }
+            
+            // 부형제 효과
+            const formEffect = formulationDB[compound.formulation] || formulationDB.water;
+            
+            const effectiveSol_intestinal = baseSol_pH6_8 * 
+                                           ionizationFactor_intestinal * 
+                                           supersaturationRatio * 
+                                           formEffect.solFactor;
+            
+            // 4. 투과도 기반 흡수율
+            let papp = parseFloat(compound.papp);
+            if (!papp && compound.caco2) papp = parseFloat(compound.caco2);
+            if (!papp) {
+                if (compound.permeability === 'high') papp = 20;
+                else if (compound.permeability === 'medium') papp = 8;
+                else papp = 2;
+            }
+            
+            // Dissolution-limited vs Permeability-limited
+            const solubilityLimited = Math.min(1, (effectiveSol_intestinal * 15) / (mw * 0.03));
+            const permeabilityLimited = Math.min(1, papp / 10);
+            
+            // 입자크기 효과
+            const particleSize = parseFloat(compound.particleSize_D50) || 50; // μm
+            const particleEffect = Math.sqrt(50 / particleSize); // Noyes-Whitney
+            
+            let Fa = solubilityLimited * permeabilityLimited * particleEffect;
+            
+            // 결정형 효과
+            if (compound.crystallinity === 'amorphous') Fa = Fa * 1.5;
+            
+            // 5. 초회통과 효과
+            const hepCL = parseFloat(compound.hepClearance) || settings.CL * 0.4;
+            const Fg = 0.92; // 장벽
+            const Fh = 1 - (hepCL / (hepCL + settings.CL * 1.5)); // 간
+            
+            // P-gp 효과
+            let pgpFactor = 1.0;
+            if (compound.pgpSubstrate === 'yes') pgpFactor = 0.6;
+            
+            // 6. 경로별 생체이용률
+            let F;
+            if (route === 'IV') F = 1.0;
+            else if (route === 'PO') F = Fa * Fg * Fh * pgpFactor;
+            else if (route === 'SC') F = 0.85 * Fa;
+            else if (route === 'IP') F = 0.9 * Fa * Fh;
+            else if (route === 'IM') F = 0.9 * Fa;
+            else F = Fa * Fg * Fh;
+            
+            F = Math.min(0.98, F);
+            
+            // 7. PK 파라미터
+            const fu = parseFloat(compound.fu) || 
+                      (compound.proteinBinding ? (100 - parseFloat(compound.proteinBinding)) / 100 : 0.05);
+            const bloodPlasmaRatio = parseFloat(compound.bloodPlasmaRatio) || 1.0;
+            
+            const Vd = (settings.Vd * (1 + logP * 0.5) / Math.max(fu, 0.01)) * bloodPlasmaRatio;
+            const CL = (settings.CL * (400 / mw) * 0.75) + (hepCL * 0.25);
+            
+            let ka = settings.ka * formEffect.kaFactor;
+            if (route === 'IV') ka = 99;
+            else if (route === 'SC') ka = ka * 0.6;
+            else if (route === 'IM') ka = ka * 0.7;
+            
             const ke = (CL * 60) / (Vd * 1000);
             
+            // 8. 시간별 농도 (Precipitation 고려)
             const timePoints = [];
             for (let t = 0; t <= 24; t += 0.5) {
-                const conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * 
-                            (ka / (ka - ke)) * (Math.exp(-ke * t) - Math.exp(-ka * t));
+                let conc;
+                
+                if (route === 'IV') {
+                    conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * Math.exp(-ke * t);
+                } else {
+                    conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * 
+                           (ka / (ka - ke)) * (Math.exp(-ke * t) - Math.exp(-ka * t));
+                }
+                
+                // Supersaturation decay (침전)
+                if (supersaturationRatio > 1 && t > 0.5) {
+                    const decayFactor = 1 - ((supersaturationRatio - 1) / supersaturationRatio) * 
+                                       (1 - Math.exp(-t / 2));
+                    conc = conc * Math.max(0.5, decayFactor);
+                }
+                
                 timePoints.push({ time: t, concentration: Math.max(0, conc) });
             }
             
+            // 9. AUC, Cmax, Tmax
             let auc = 0;
             for (let i = 1; i < timePoints.length; i++) {
                 auc += (timePoints[i].concentration + timePoints[i-1].concentration) / 2 * 0.5;
@@ -164,28 +311,59 @@
             const Cmax = Math.max(...timePoints.map(p => p.concentration));
             const Tmax = timePoints.find(p => p.concentration === Cmax)?.time || 0;
             
-            let accuracy = null;
-            if (settings.calibrated && REFERENCE_DATA[compound.saltForm]) {
-                const ref = REFERENCE_DATA[compound.saltForm];
-                const aucErr = Math.abs(auc - ref.auc) / ref.auc;
-                const cmaxErr = Math.abs(Cmax - ref.cmax) / ref.cmax;
-                accuracy = ((1 - (aucErr + cmaxErr) / 2) * 100).toFixed(1);
-            }
-            
             compound.pkResult = {
                 profile: timePoints,
                 params: {
-                    Cmax: Cmax.toFixed(2), Tmax: Tmax.toFixed(1), AUC: auc.toFixed(2),
-                    Vd: Vd.toFixed(2), CL: CL.toFixed(2), t_half: (0.693 / ke).toFixed(2),
-                    F: (F * 100).toFixed(1), accuracy: accuracy
+                    Cmax: Cmax.toFixed(2),
+                    Tmax: Tmax.toFixed(1),
+                    AUC: auc.toFixed(2),
+                    Vd: Vd.toFixed(2),
+                    CL: CL.toFixed(2),
+                    t_half: (0.693 / ke).toFixed(2),
+                    F: (F * 100).toFixed(1),
+                    Fa: (Fa * 100).toFixed(1),
+                    ka: ka.toFixed(3),
+                    ke: ke.toFixed(3)
                 }
             };
+            
+            return true;
         }
 
         function calculateAll() {
             clearAlerts();
-            compounds.forEach(c => calculatePK(c));
-            addAlert('success', `✅ 계산 완료! ${speciesSettings[selectedSpecies].calibrated ? '(실험 보정 적용)' : ''}`);
+            let success = 0, fail = 0;
+            for (let c of compounds) {
+                if (calculatePK(c)) success++;
+                else fail++;
+            }
+            if (success > 0) addAlert('success', `✅ ${success}개 물질 계산 완료!`);
+            if (fail > 0) addAlert('error', `❌ ${fail}개 물질 계산 실패`);
+        }
+
+        function validateStep1() {
+            clearAlerts();
+            if (compounds.length === 0) {
+                addAlert('warning', '최소 1개 물질을 추가하세요.');
+                return false;
+            }
+            
+            for (let c of compounds) {
+                if (!c.molecularWeight) {
+                    addAlert('error', `${c.name}: 분자량 필수`);
+                    return false;
+                }
+                if (!c.dose) {
+                    addAlert('error', `${c.name}: 투여 용량 필수`);
+                    return false;
+                }
+                const solCount = Object.values(c.solubility).filter(v => v !== '').length;
+                if (solCount === 0) {
+                    addAlert('error', `${c.name}: 최소 1개 용해도 입력`);
+                    return false;
+                }
+            }
+            return true;
         }
 
         function updateStepIndicator() {
@@ -195,10 +373,7 @@
         }
 
         function nextStep() {
-            if (currentStep === 1 && compounds.length === 0) {
-                addAlert('info', '최소 1개 물질을 추가하세요.');
-                return;
-            }
+            if (currentStep === 1 && !validateStep1()) return;
             if (currentStep < 3) currentStep++;
             if (currentStep === 3) calculateAll();
             render();
@@ -206,17 +381,26 @@
 
         function prevStep() { if (currentStep > 1) currentStep--; render(); }
 
+        function toggleCollapsible(id) {
+            const el = document.getElementById(id);
+            el.classList.toggle('active');
+        }
+
         function renderStep1() {
             return `
-                <div class="calibration-box">
-                    <strong style="color: #065f46;">🎯 DWP220496 실험 데이터 보정 활성화</strong><br>
-                    <span style="font-size: 11px;">Mesylate(AUC 7907) vs Tosylate(AUC 3790) vs Freebase(AUC 1324) - Mouse 예측 정확도 90%+</span>
+                <div class="info-box">
+                    <strong>📌 필수 입력 항목</strong><br>
+                    ✓ 분자량, 용량, 용해도 (최소 1개), 투여경로<br>
+                    <strong>🎯 권장 입력 (정확도 ↑)</strong><br>
+                    ✓ pKa (가장 중요!), Papp, LogP, 간 CL, 입자크기
                 </div>
 
                 <div class="flex-between" style="margin-bottom: 16px;">
                     <h2 style="font-size: 16px;">등록 물질: ${compounds.length}개</h2>
-                    <button class="btn btn-secondary" onclick="addCompound()" style="padding: 8px 16px;">➕ 추가</button>
+                    <button class="btn btn-secondary" onclick="addCompound()" style="padding: 8px 16px;">➕ 물질 추가</button>
                 </div>
+
+                ${compounds.length === 0 ? '<div class="alert alert-info">물질을 추가하여 시작하세요</div>' : ''}
 
                 ${compounds.map(c => `
                     <div class="compound-item">
@@ -224,234 +408,20 @@
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <div class="color-indicator" style="background: ${c.color};"></div>
                                 <input type="text" value="${c.name}" onchange="updateCompound(${c.id}, 'name', null, this.value); render();"
-                                       style="font-weight: 600; border: 1px solid #e5e7eb; padding: 4px 8px; border-radius: 4px; width: 200px;">
+                                       style="font-weight: 600; border: 1px solid #e5e7eb; padding: 6px 10px; border-radius: 6px; width: 250px; font-size: 14px;">
                             </div>
-                            <button onclick="removeCompound(${c.id}); render();" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer;">🗑️</button>
+                            <button onclick="removeCompound(${c.id}); render();" 
+                                    style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                                🗑️ 삭제
+                            </button>
                         </div>
 
+                        <!-- 필수 섹션 -->
                         <div class="section">
-                            <h2>💊 Salt Form 선택</h2>
-                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-                                ${Object.entries(SALT_DATABASE).map(([key, data]) => `
-                                    <div onclick="updateCompound(${c.id}, 'saltForm', null, '${key}'); render();"
-                                         style="padding: 10px; border: 2px solid ${c.saltForm === key ? '#4f46e5' : '#e5e7eb'}; 
-                                                border-radius: 6px; cursor: pointer; text-align: center; font-size: 12px;
-                                                background: ${c.saltForm === key ? '#eff6ff' : 'white'};">
-                                        <strong>${data.label}</strong><br>
-                                        <span style="font-size: 10px; color: #6b7280;">${key !== 'freebase' ? data.calibration.toFixed(1) + '배' : '기준'}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <div class="section">
-                            <h2>📊 용해도 (μg/mL)</h2>
-                            <div class="grid">
-                                ${['pH1_2', 'pH6_8', 'faSSIF', 'water'].map(key => `
-                                    <div class="form-group">
-                                        <label>${{pH1_2:'pH 1.2', pH6_8:'pH 6.8', faSSIF:'FaSSIF', water:'정제수'}[key]}</label>
-                                        <input type="number" step="0.01" value="${c.solubility[key]}"
-                                               onchange="updateCompound(${c.id}, 'solubility', '${key}', this.value)">
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <div class="section">
-                            <h2>⚗️ ADME 파라미터</h2>
-                            <div class="grid">
-                                <div class="form-group"><label>분자량</label>
-                                    <input type="number" value="${c.properties.molecularWeight}" placeholder="400"
-                                           onchange="updateCompound(${c.id}, 'properties', 'molecularWeight', this.value)"></div>
-                                <div class="form-group"><label>LogP</label>
-                                    <input type="number" step="0.1" value="${c.properties.logP}" placeholder="2.5"
-                                           onchange="updateCompound(${c.id}, 'properties', 'logP', this.value)"></div>
-                                <div class="form-group"><label>용량 (mg/kg)</label>
-                                    <input type="number" value="${c.properties.dose}"
-                                           onchange="updateCompound(${c.id}, 'properties', 'dose', this.value)"></div>
-                                <div class="form-group"><label>Papp (×10⁻⁶)</label>
-                                    <input type="number" value="${c.properties.papp}" placeholder="15"
-                                           onchange="updateCompound(${c.id}, 'properties', 'papp', this.value)"></div>
-                                <div class="form-group"><label>간 CL</label>
-                                    <input type="number" value="${c.properties.hepClearance}" placeholder="25"
-                                           onchange="updateCompound(${c.id}, 'properties', 'hepClearance', this.value)"></div>
-                                <div class="form-group"><label>단백결합 (%)</label>
-                                    <input type="number" value="${c.properties.proteinBinding}" placeholder="95"
-                                           onchange="updateCompound(${c.id}, 'properties', 'proteinBinding', this.value)"></div>
-                            </div>
-                        </div>
-                    </div>
-                `).join('')}
-
-                <button class="btn btn-primary" onclick="nextStep()">➡️ NEXT: 종 설정</button>
-            `;
-        }
-
-        function renderStep2() {
-            return `
-                <div class="info-box">💡 Mouse는 DWP220496 실험 데이터로 보정되어 가장 정확합니다</div>
-                
-                <div class="section">
-                    <h2>🐾 동물 종 선택</h2>
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-                        ${Object.entries(speciesSettings).map(([key, s]) => `
-                            <div onclick="selectedSpecies='${key}'; render();"
-                                 style="padding: 16px; border: 2px solid ${selectedSpecies === key ? '#4f46e5' : '#e5e7eb'};
-                                        border-radius: 8px; cursor: pointer; text-align: center;
-                                        background: ${selectedSpecies === key ? '#eff6ff' : 'white'};">
-                                <div style="font-size: 20px; margin-bottom: 8px;">${s.label}</div>
-                                <div style="font-size: 11px; color: #6b7280;">
-                                    ${s.calibrated ? '<span style="color: #10b981; font-weight: 600;">✓ 보정됨</span>' : '기본 모델'}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-
-                <div class="flex-between">
-                    <button class="btn" onclick="prevStep()" style="background: #6b7280; color: white; width: 48%;">⬅️ 이전</button>
-                    <button class="btn btn-primary" onclick="nextStep()" style="width: 48%;">➡️ 결과 보기</button>
-                </div>
-            `;
-        }
-
-        function renderStep3() {
-            const calc = compounds.filter(c => c.pkResult);
-            if (calc.length === 0) return '<div class="alert alert-info">데이터를 입력하고 계산하세요.</div>';
-
-            return `
-                <div class="section">
-                    <h2>📈 ${speciesSettings[selectedSpecies].label} PK 프로파일</h2>
-                    <div class="chart-container"><canvas id="pkChart"></canvas></div>
-                </div>
-
-                <div class="section">
-                    <h2>📊 PK 파라미터 비교</h2>
-                    <table class="comparison-table">
-                        <thead><tr>
-                            <th>물질명</th><th>Salt</th><th>Cmax (ng/mL)</th><th>Tmax (h)</th>
-                            <th>AUC (ng·h/mL)</th><th>t½ (h)</th><th>F (%)</th>
-                            ${speciesSettings[selectedSpecies].calibrated ? '<th>정확도</th>' : ''}
-                        </tr></thead>
-                        <tbody>
-                            ${calc.map(c => `
-                                <tr>
-                                    <td><div style="display: flex; align-items: center; gap: 6px;">
-                                        <div class="color-indicator" style="background: ${c.color};"></div>
-                                        <strong>${c.name}</strong>
-                                    </div></td>
-                                    <td>${SALT_DATABASE[c.saltForm].label}</td>
-                                    <td><span class="badge badge-blue">${c.pkResult.params.Cmax}</span></td>
-                                    <td>${c.pkResult.params.Tmax}</td>
-                                    <td><span class="badge badge-green">${c.pkResult.params.AUC}</span></td>
-                                    <td>${c.pkResult.params.t_half}</td>
-                                    <td><span class="badge badge-purple">${c.pkResult.params.F}</span></td>
-                                    ${speciesSettings[selectedSpecies].calibrated ? 
-                                        `<td>${c.pkResult.params.accuracy ? '<strong style="color: #10b981;">' + c.pkResult.params.accuracy + '%</strong>' : '-'}</td>` : ''}
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-
-                ${calc.length > 1 ? `
-                <div class="section">
-                    <h2>🔬 상대 비교 (기준: ${calc[0].name})</h2>
-                    <table class="comparison-table">
-                        <thead><tr><th>물질명</th><th>Cmax 비율</th><th>AUC 비율</th><th>F 비율</th></tr></thead>
-                        <tbody>
-                            ${calc.map((c, i) => {
-                                const ref = calc[0].pkResult.params;
-                                const cmaxR = (parseFloat(c.pkResult.params.Cmax) / parseFloat(ref.Cmax) * 100).toFixed(0);
-                                const aucR = (parseFloat(c.pkResult.params.AUC) / parseFloat(ref.AUC) * 100).toFixed(0);
-                                const fR = (parseFloat(c.pkResult.params.F) / parseFloat(ref.F) * 100).toFixed(0);
-                                return `<tr>
-                                    <td><strong>${c.name}</strong></td>
-                                    <td>${i === 0 ? '100 (기준)' : cmaxR + '%'}</td>
-                                    <td>${i === 0 ? '100 (기준)' : aucR + '%'}</td>
-                                    <td>${i === 0 ? '100 (기준)' : fR + '%'}</td>
-                                </tr>`;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                ` : ''}
-
-                <div class="flex-between" style="margin-top: 16px;">
-                    <button class="btn" onclick="currentStep=1; render();" style="background: #6b7280; color: white; width: 32%;">🔄 처음으로</button>
-                    <button class="btn btn-secondary" onclick="exportCSV()" style="width: 32%;">💾 CSV</button>
-                    <button class="btn btn-primary" onclick="window.print()" style="width: 32%;">🖨️ 출력</button>
-                </div>
-            `;
-        }
-
-        function renderChart() {
-            const ctx = document.getElementById('pkChart');
-            if (!ctx) return;
-            const calc = compounds.filter(c => c.pkResult);
-            if (calc.length === 0) return;
-
-            if (chartInstance) chartInstance.destroy();
-
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: calc[0].pkResult.profile.map(p => p.time.toFixed(1)),
-                    datasets: calc.map(c => ({
-                        label: `${c.name} (${SALT_DATABASE[c.saltForm].label})`,
-                        data: c.pkResult.profile.map(p => p.concentration),
-                        borderColor: c.color,
-                        backgroundColor: c.color + '20',
-                        borderWidth: 3,
-                        tension: 0.4,
-                        pointRadius: 0
-                    }))
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'top' },
-                        tooltip: { callbacks: { label: (ctx) => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + ' ng/mL' } }
-                    },
-                    scales: {
-                        x: { title: { display: true, text: 'Time (hours)' } },
-                        y: { title: { display: true, text: 'Concentration (ng/mL)' }, beginAtZero: true }
-                    }
-                }
-            });
-        }
-
-        function exportCSV() {
-            const calc = compounds.filter(c => c.pkResult);
-            if (calc.length === 0) return;
-
-            let csv = 'Time (h),' + calc.map(c => c.name).join(',') + '\n';
-            for (let i = 0; i < calc[0].pkResult.profile.length; i++) {
-                const time = calc[0].pkResult.profile[i].time.toFixed(1);
-                const values = calc.map(c => c.pkResult.profile[i].concentration.toFixed(4));
-                csv += time + ',' + values.join(',') + '\n';
-            }
-
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `pk_prediction_${selectedSpecies}_${Date.now()}.csv`;
-            link.click();
-        }
-
-        function render() {
-            updateStepIndicator();
-            const content = document.getElementById('main-content');
-            
-            if (currentStep === 1) content.innerHTML = renderStep1();
-            else if (currentStep === 2) content.innerHTML = renderStep2();
-            else content.innerHTML = renderStep3();
-
-            if (currentStep === 3) setTimeout(renderChart, 100);
-        }
-
-        render();
-    </script>
-</body>
-</html>
+                            <h2>🎯 필수 항목</h2>
+                            
+                            <h3 style="margin-top: 12px;">💊 투여 경로</h3>
+                            <div class="route-grid">
+                                ${['PO', 'IV', 'SC', 'IP', 'IM'].map(route => `
+                                    <div class="route-btn ${c.route === route ? 'selected' : ''}"
+                                         onclick="updateCompound(${c.id}, 'route', null, '${route}'); render();">
