@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>In Vitro → In Vivo PK 예측 시스템</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; }
+        .tab-inactive { color: #6b7280; }
+        input:focus, select:focus { outline: none; ring: 2px solid #3b82f6; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        // 전역 상태 관리
+        let currentTab = 'input';
+        let solubilityData = {
+            pH1_2: '', pH4_5: '', pH6_8: '', faSSIF: '',
+            faSSGF: '', feSSIF: '', water: '', purifiedWater: ''
+        };
+        let drugProperties = {
+            molecularWeight: '', logP: '', pKa: '', dose: '',
+            proteinBinding: '95', permeability: 'high'
+        };
+        let pkResults = null;
+        let chartInstance = null;
+
+        // PK 계산 함수들
+        function calculateGISolubility() {
+            const gastricSol = parseFloat(solubilityData.faSSGF || solubilityData.pH1_2) || 0.01;
+            const intestinalSol = parseFloat(solubilityData.faSSIF || solubilityData.pH6_8) || 0.01;
+            const fedSol = parseFloat(solubilityData.feSSIF || solubilityData.faSSIF) || 0.01;
+            return { gastricSol, intestinalSol, fedSol };
+        }
+
+        function calculateAbsorption(species) {
+            const { intestinalSol } = calculateGISolubility();
+            const logP = parseFloat(drugProperties.logP) || 2;
+            const mw = parseFloat(drugProperties.molecularWeight) || 400;
+            
+            let permeabilityFactor = 0.9;
+            if (drugProperties.permeability === 'medium') permeabilityFactor = 0.6;
+            else if (drugProperties.permeability === 'low') permeabilityFactor = 0.3;
+            
+            const solLimited = Math.min(1, (intestinalSol * 10) / (mw * 0.01));
+            const Fa = Math.min(0.95, solLimited * permeabilityFactor);
+            
+            const speciesFactors = { rat: 1.2, mouse: 1.3, dog: 0.9 };
+            return Fa * (speciesFactors[species] || 1.0);
+        }
+
+        function calculatePKProfile(species) {
+            const dose = parseFloat(drugProperties.dose) || 10;
+            const mw = parseFloat(drugProperties.molecularWeight) || 400;
+            const logP = parseFloat(drugProperties.logP) || 2;
+            const Fa = calculateAbsorption(species);
+            
+            const physiologyParams = {
+                rat: { Vd: 3.5, CL: 50, ka: 1.2, bodyWeight: 0.25 },
+                mouse: { Vd: 4.0, CL: 60, ka: 1.5, bodyWeight: 0.025 },
+                dog: { Vd: 2.0, CL: 25, ka: 0.8, bodyWeight: 10 }
+            };
+            
+            const params = physiologyParams[species];
+            const Vd = params.Vd * (1 + logP * 0.3);
+            const CL = params.CL * (400 / mw) * 0.8;
+            const ka = params.ka;
+            const ke = (CL * 60) / (Vd * 1000);
+            
+            const timePoints = [];
+            for (let t = 0; t <= 24; t += 0.5) {
+                const concentration = (Fa * dose * 1000 / (Vd * params.bodyWeight)) * 
+                                     (ka / (ka - ke)) * 
+                                     (Math.exp(-ke * t) - Math.exp(-ka * t));
+                timePoints.push({ time: t, concentration: Math.max(0, concentration) });
+            }
+            
+            let auc = 0;
+            for (let i = 1; i < timePoints.length; i++) {
+                auc += (timePoints[i].concentration + timePoints[i-1].concentration) / 2 * 0.5;
+            }
+            
+            const Cmax = Math.max(...timePoints.map(p => p.concentration));
+            const Tmax = timePoints.find(p => p.concentration === Cmax)?.time || 0;
+            
+            return {
+                profile: timePoints,
+                params: {
+                    Cmax: Cmax.toFixed(2),
+                    Tmax: Tmax.toFixed(1),
+                    AUC: auc.toFixed(2),
+                    Vd: Vd.toFixed(2),
+                    CL: CL.toFixed(2),
+                    t_half: (0.693 / ke).toFixed(2),
+                    Fa: (Fa * 100).toFixed(1)
+                }
+            };
+        }
+
+        function handlePredict() {
+            const ratPK = calculatePKProfile('rat');
+            const mousePK = calculatePKProfile('mouse');
+            const dogPK = calculatePKProfile('dog');
+            
+            pkResults = {
+                profile: ratPK.profile.map((point, idx) => ({
+                    time: point.time,
+                    rat: point.concentration,
+                    mouse: mousePK.profile[idx].concentration,
+                    dog: dogPK.profile[idx].concentration
+                })),
+                rat: ratPK.params,
+                mouse: mousePK.params,
+                dog: dogPK.params
+            };
+            
+            currentTab = 'results';
+            render();
+            renderChart();
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('pkChart');
+            if (!ctx) return;
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: pkResults.profile.map(p => p.time.toFixed(1)),
+                    datasets: [
+                        {
+                            label: 'Rat',
+                            data: pkResults.profile.map(p => p.rat),
+                            borderColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Mouse',
+                            data: pkResults.profile.map(p => p.mouse),
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Dog',
+                            data: pkResults.profile.map(p => p.dog),
+                            borderColor: '#F59E0B',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + ' ng/mL';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Time (hours)' },
+                            ticks: { maxTicksLimit: 13 }
+                        },
+                        y: {
+                            title: { display: true, text: 'Concentration (ng/mL)' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        const solubilityFields = [
+            { key: 'pH1_2', label: 'pH 1.2 Buffer' },
+            { key: 'pH4_5', label: 'pH 4.5 Buffer' },
+            { key: 'pH6_8', label: 'pH 6.8 Buffer' },
+            { key: 'faSSIF', label: 'FaSSIF' },
+            { key: 'faSSGF', label: 'FaSSGF' },
+            { key: 'feSSIF', label: 'FeSSIF' },
+            { key: 'water', label: '정제수' },
+            { key: 'purifiedWater', label: '주사용수' }
+        ];
+
+        function render() {
+            const app = document.getElementById('root');
+            app.innerHTML = `
+                <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+                    <div class="max-w-7xl mx-auto">
+                        <div class="bg-white rounded-xl shadow-2xl overflow-hidden">
+                            <!-- Header -->
+                            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+                                <h1 class="text-3xl font-bold">🧬 In Vitro → In Vivo PK 예측 시스템</h1>
+                                <p class="text-blue-100 mt-1">신약 DS 물질의 용해도 기반 약동학 예측</p>
+                            </div>
+
+                            <!-- Tabs -->
+                            <div class="flex border-b">
+                                <button onclick="switchTab('input')" class="px-6 py-3 font-medium ${currentTab === 'input' ? 'tab-active' : 'tab-inactive'}">
+                                    데이터 입력
+                                </button>
+                                <button onclick="switchTab('results')" class="px-6 py-3 font-medium ${currentTab === 'results' ? 'tab-active' : 'tab-inactive'}" ${!pkResults ? 'disabled style="opacity:0.5"' : ''}>
+                                    PK 예측 결과
+                                </button>
+                            </div>
+
+                            <!-- Content -->
+                            <div class="p-6">
+                                ${currentTab === 'input' ? renderInputTab() : renderResultsTab()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderInputTab() {
+            return `
+                <div class="space-y-6">
+                    <!-- 용해도 데이터 -->
+                    <div class="bg-blue-50 p-6 rounded-lg">
+                        <h2 class="text-xl font-bold text-gray-800 mb-4">📊 In Vitro 용해도 데이터 (μg/mL)</h2>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            ${solubilityFields.map(field => `
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">${field.label}</label>
+                                    <input type="number" step="0.01" 
+                                           id="sol_${field.key}"
+                                           value="${solubilityData[field.key]}"
+                                           onchange="updateSolubility('${field.key}', this.value)"
+                                           class="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" 
+                                           placeholder="0.00">
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- 약물 특성 -->
+                    <div class="bg-green-50 p-6 rounded-lg">
+                        <h2 class="text-xl font-bold text-gray-800 mb-4">⚗️ 약물 물리화학적 특성</h2>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">분자량 (MW)</label>
+                                <input type="number" value="${drugProperties.molecularWeight}" 
+                                       onchange="updateDrugProp('molecularWeight', this.value)"
+                                       class="w-full px-3 py-2 border rounded-md" placeholder="400">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">LogP</label>
+                                <input type="number" step="0.1" value="${drugProperties.logP}"
+                                       onchange="updateDrugProp('logP', this.value)"
+                                       class="w-full px-3 py-2 border rounded-md" placeholder="2.5">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">pKa</label>
+                                <input type="number" step="0.1" value="${drugProperties.pKa}"
+                                       onchange="updateDrugProp('pKa', this.value)"
+                                       class="w-full px-3 py-2 border rounded-md" placeholder="7.0">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">투여 용량 (mg/kg)</label>
+                                <input type="number" value="${drugProperties.dose}"
+                                       onchange="updateDrugProp('dose', this.value)"
+                                       class="w-full px-3 py-2 border rounded-md" placeholder="10">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">단백결합률 (%)</label>
+                                <input type="number" value="${drugProperties.proteinBinding}"
+                                       onchange="updateDrugProp('proteinBinding', this.value)"
+                                       class="w-full px-3 py-2 border rounded-md" placeholder="95">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">장 투과도</label>
+                                <select value="${drugProperties.permeability}"
+                                        onchange="updateDrugProp('permeability', this.value)"
+                                        class="w-full px-3 py-2 border rounded-md">
+                                    <option value="high">High (Papp > 10)</option>
+                                    <option value="medium">Medium (1-10)</option>
+                                    <option value="low">Low (< 1)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="handlePredict()" 
+                            class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
+                        🚀 PK 프로파일 예측 실행
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderResultsTab() {
+            if (!pkResults) return '<p class="text-center text-gray-500">데이터를 입력하고 예측을 실행해주세요.</p>';
+            
+            return `
+                <div class="space-y-6">
+                    <!-- 그래프 -->
+                    <div class="bg-white p-6 rounded-lg border-2">
+                        <h2 class="text-xl font-bold mb-4">📈 시간별 혈중농도 프로파일</h2>
+                        <div style="height: 400px;">
+                            <canvas id="pkChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- PK 파라미터 -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        ${['rat', 'mouse', 'dog'].map(species => `
+                            <div class="bg-blue-50 p-6 rounded-lg border-2 border-blue-200">
+                                <h3 class="text-lg font-bold mb-4">
+                                    ${species === 'rat' ? '🐀 Rat' : species === 'mouse' ? '🐭 Mouse' : '🐕 Dog'}
+                                </h3>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span>Cmax:</span>
+                                        <span class="font-bold text-blue-600">${pkResults[species].Cmax} ng/mL</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Tmax:</span>
+                                        <span class="font-bold text-blue-600">${pkResults[species].Tmax} h</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>AUC:</span>
+                                        <span class="font-bold text-blue-600">${pkResults[species].AUC} ng·h/mL</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>t½:</span>
+                                        <span class="font-bold text-blue-600">${pkResults[species].t_half} h</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Vd:</span>
+                                        <span class="font-bold text-blue-600">${pkResults[species].Vd} L/kg</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>CL:</span>
+                                        <span class="font-bold text-blue-600">${pkResults[species].CL} mL/min/kg</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>흡수율:</span>
+                                        <span class="font-bold text-green-600">${pkResults[species].Fa}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 text-sm">
+                        ⚠️ <strong>참고:</strong> 본 예측은 One-compartment 모델 기반이며, 실제 PK는 제형·대사·트랜스포터 등의 영향을 받습니다.
+                    </div>
+                </div>
+            `;
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            render();
+            if (tab === 'results' && pkResults) {
+                setTimeout(renderChart, 100);
+            }
+        }
+
+        function updateSolubility(key, value) {
+            solubilityData[key] = value;
+        }
+
+        function updateDrugProp(key, value) {
+            drugProperties[key] = value;
+        }
+
+        // 초기 렌더링
+        render();
+    </script>
+</body>
+</html>
