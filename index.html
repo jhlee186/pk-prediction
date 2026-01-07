@@ -36,6 +36,9 @@
         .alert-warning { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
         .alert-error { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
         .compound-item { background: white; padding: 16px; border-radius: 8px; border: 2px solid #e5e7eb; margin-bottom: 12px; }
+        .compound-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .compound-name-editable { font-size: 16px; font-weight: 600; padding: 8px; border: 2px solid #e5e7eb; border-radius: 6px; flex: 1; }
+        .compound-name-editable:focus { outline: none; border-color: #4f46e5; }
         .chart-container { height: 500px; margin-top: 16px; }
         .comparison-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 16px; }
         .comparison-table th, .comparison-table td { padding: 8px; text-align: left; border-bottom: 1px solid #e5e7eb; }
@@ -52,14 +55,69 @@
         .info-box { background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 12px; }
         .help-box { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 8px; font-size: 11px; margin-top: 4px; }
         .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-        .route-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .route-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
         .route-btn { padding: 12px; border: 2px solid #e5e7eb; border-radius: 6px; cursor: pointer; text-align: center; font-size: 13px; font-weight: 600; transition: all 0.3s; }
         .route-btn:hover { border-color: #4f46e5; }
         .route-btn.selected { border-color: #4f46e5; background: #eff6ff; color: #4f46e5; }
-        .collapsible { cursor: pointer; padding: 12px; background: #e5e7eb; border-radius: 6px; margin-bottom: 8px; font-weight: 600; font-size: 13px; }
-        .collapsible:hover { background: #d1d5db; }
-        .collapsible-content { display: none; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 12px; }
-        .collapsible-content.active { display: block; }
+        .collapsible-content { display: block; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 12px; }
+        
+        /* 툴팁 스타일 */
+        .info-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            background: #3b82f6;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 16px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: help;
+            margin-left: 4px;
+            position: relative;
+        }
+        
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 300px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -150px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 11px;
+            line-height: 1.5;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #1f2937 transparent transparent transparent;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -83,11 +141,10 @@
     </div>
 
     <script>
-        let currentStep = 1, compounds = [], selectedSpecies = 'mouse', chartInstance = null, alerts = [];
+        let currentStep = 1, compounds = [], selectedSpecies = 'rat', chartInstance = null, alerts = [];
         const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
         
         const speciesSettings = {
-            mouse: { bodyWeight: 0.025, Vd: 4.0, CL: 60, ka: 1.5, label: '🐭 Mouse' },
             rat: { bodyWeight: 0.25, Vd: 3.5, CL: 50, ka: 1.2, label: '🐀 Rat' },
             dog: { bodyWeight: 10, Vd: 2.0, CL: 25, ka: 0.8, label: '🐕 Dog (Beagle)' }
         };
@@ -100,8 +157,31 @@
             '0.5% CMC': { label: '0.5% CMC', viscosity: 100, solFactor: 1.4, kaFactor: 0.8 },
             '1% Tween80': { label: '1% Tween 80', viscosity: 5, solFactor: 3.5, kaFactor: 0.95 },
             'PEG400 30%': { label: '30% PEG 400', viscosity: 50, solFactor: 4.5, kaFactor: 1.0 },
+            'Solutol 10%': { label: 'Solutol 10%', viscosity: 8, solFactor: 5.0, kaFactor: 1.05 },
+            'Captisol 10%': { label: 'Captisol 10%', viscosity: 3, solFactor: 6.0, kaFactor: 1.1 },
             'custom': { label: '직접 입력', viscosity: 1, solFactor: 1.0, kaFactor: 1.0 }
         };
+
+        const tooltips = {
+            route: '투여경로: 약물이 체내에 투입되는 방식<br>• PO (경구): 위장관을 통한 흡수<br>• IV (정맥): 혈관에 직접 투여',
+            dose: '투여량: 동물에게 투여할 약물의 양<br>단위: mg/kg (체중 kg당 mg)<br>일반적 범위: 1-100 mg/kg',
+            molecularWeight: '분자량: 약물 분자의 질량<br>단위: g/mol<br>일반적 범위: 150-800 g/mol<br>예: Aspirin=180, Ibuprofen=206',
+            pKa: 'pKa: 산해리상수 (산성도 지표)<br>• pKa < 5: 산성 약물<br>• pKa 5-9: 중성<br>• pKa > 9: 염기성 약물<br>pH별 용해도 계산에 사용됩니다',
+            logP: 'LogP: 옥탄올/물 분배계수 (친유성 지표)<br>• LogP < 0: 친수성<br>• LogP 0-3: 적절한 친유성<br>• LogP > 5: 매우 친유성<br>투과성 예측에 사용됩니다',
+            solubility: '용해도: pH별 약물 용해도<br>단위: μg/mL<br>용해도가 높을수록 흡수가 빠릅니다<br>BCS 분류 및 생체이용률 예측에 필수',
+            caco2: 'Caco-2 투과도<br>단위: 10⁻⁶ cm/s<br>• <1: 낮은 투과성 (BCS III, IV)<br>• 1-10: 중간 투과성<br>• >10: 높은 투과성 (BCS I, II)<br>장 상피세포 투과 능력 측정',
+            bcsClass: 'BCS 분류 (Biopharmaceutics Classification System)<br>용해도와 투과성에 따른 분류:<br>• Class I: 고용해도/고투과성 (F>80%)<br>• Class II: 저용해도/고투과성 (F 가변적)<br>• Class III: 고용해도/저투과성 (F<50%)<br>• Class IV: 저용해도/저투과성 (F<30%)',
+            proteinBinding: '혈장단백질 결합률<br>단위: % (0-100)<br>• <80%: 낮은 결합<br>• 80-95%: 중간 결합<br>• >95%: 높은 결합<br>분포용적(Vd) 계산에 영향',
+            hepClearance: '간 클리어런스<br>단위: mL/min/kg<br>간에서의 약물 대사 속도<br>초회통과효과 및 전신 제거율 계산<br><strong>PK 예측의 가장 중요한 파라미터</strong>',
+            logD: 'LogD (pH 7.4): 생리적 pH에서의 분배계수<br>LogP와 달리 이온화 상태를 고려<br>• LogD < 0: 친수성<br>• LogD 1-3: 최적 친유성<br>• LogD > 5: 과도한 친유성<br>막 투과성 및 Vd 예측에 중요',
+            formulation: '부형제 효과:<br>• 정제수: 용해도 1배 (기준)<br>• 0.5% MC: 1.3배 증가<br>• Tween 80: 3-4배 증가 (계면활성제)<br>• PEG 400: 4.5배 증가 (가용화제)<br>• Solutol 10%: 5배 증가<br>• Captisol 10%: 6배 증가 (cyclodextrin)',
+            particleSize: '입자 크기 (Particle Size)<br>단위: μm<br>• D50: 중앙값 (50% 입자가 이보다 작음)<br>• D90: 90% 입자가 이보다 작음)<br>작을수록 용해 속도가 빠릅니다<br>Noyes-Whitney 식으로 계산됩니다',
+            doseVolume: '투여 부피<br>단위: mL/kg<br>일반적 범위: 5-20 mL/kg<br>부피가 클수록 위장 체류시간 증가<br>용해도 제한 약물의 흡수에 영향'
+        };
+
+        function createTooltip(key) {
+            return `<span class="tooltip"><span class="info-icon">i</span><span class="tooltiptext">${tooltips[key]}</span></span>`;
+        }
 
         function addAlert(type, msg) { alerts.push({ type, msg }); renderAlerts(); }
         function clearAlerts() { alerts = []; renderAlerts(); }
@@ -112,7 +192,7 @@
         }
 
         function addCompound() {
-            const defaultName = compounds.length === 0 ? '물질명 입력' : `물질 ${compounds.length + 1}`;
+            const defaultName = compounds.length === 0 ? '물질 1' : `물질 ${compounds.length + 1}`;
             compounds.push({
                 id: Date.now(),
                 name: defaultName,
@@ -123,757 +203,504 @@
                 molecularWeight: '',
                 pKa: '',
                 logP: '',
+                logD: '',
                 
                 // 용해도
                 solubility: { pH1_2: '', pH4_5: '', pH6_8: '', faSSIF: '', faSSGF: '', feSSIF: '', water: '' },
                 
-                // ADME
-                papp: '',
+                // ADME (간소화)
                 caco2: '',
-                permeability: 'medium',
+                bcsClass: '2',
                 proteinBinding: '',
-                fu: '',
                 hepClearance: '',
-                bloodPlasmaRatio: '',
                 
                 // 제형
-                formulation: '0.2% Tween80 in 0.5% MC',
+                formulation: 'water',
                 customFormulation: '',
+                doseVolume: '10',
                 
-                // 고급 (선택)
+                // 입자 특성
                 particleSize_D50: '',
-                particleSize_D90: '',
-                crystallinity: 'crystalline',
-                dissolutionTest: '',
-                pgpSubstrate: 'unknown',
-                
-                pkResult: null,
-                color: colors[compounds.length % colors.length]
+                particleSize_D90: ''
             });
             render();
         }
 
-        function removeCompound(id) { compounds = compounds.filter(c => c.id !== id); render(); }
-        
-        function updateCompound(id, field, subfield, value) {
+        function removeCompound(id) {
+            compounds = compounds.filter(c => c.id !== id);
+            render();
+        }
+
+        function updateCompound(id, field, value) {
             const c = compounds.find(c => c.id === id);
             if (!c) return;
-            if (subfield) c[field][subfield] = value;
-            else c[field] = value;
-        }
-
-        // ==================== 고급 PK 계산 (수정 버전) ====================
-        function calculatePK(compound) {
-            const species = selectedSpecies;
-            const settings = speciesSettings[species];
-            const route = compound.route;
             
-            // 1. 기본 물성
-            const mw = parseFloat(compound.molecularWeight);
-            const logP = parseFloat(compound.logP) || 2.5;
-            const pKa = parseFloat(compound.pKa);
-            const dose = parseFloat(compound.dose);
-            
-            if (!mw || !dose) {
-                addAlert('error', `${compound.name}: 분자량과 용량은 필수입니다.`);
-                return false;
-            }
-            
-            // 2. Salt correction 제거 (분자량에 이미 포함)
-            const effectiveDose = dose;
-            
-            // 3. 용해도 계산 (개선된 pH 의존성 모델)
-            const sol_pH1_2 = parseFloat(compound.solubility.pH1_2 || compound.solubility.faSSGF) || 0.1;
-            const sol_pH6_8 = parseFloat(compound.solubility.pH6_8 || compound.solubility.faSSIF) || 0.1;
-            const sol_feSSIF = parseFloat(compound.solubility.feSSIF) || sol_pH6_8;
-            
-            // pH 의존적 용해도 선택 (pKa 기반)
-            let effectiveSol;
-            
-            if (pKa) {
-                // pKa가 여러 개면 콤마로 구분되어 있을 수 있음
-                const pKa_values = String(pKa).split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
-                const main_pKa = pKa_values.length > 0 ? Math.min(...pKa_values) : parseFloat(pKa); // 가장 낮은 pKa 사용
-                
-                if (main_pKa < 5) {
-                    // 산성 약물: 소장(pH 6.8)에서 이온화 → 용해도 높음
-                    effectiveSol = Math.max(sol_pH6_8, sol_feSSIF);
-                } else if (main_pKa > 8) {
-                    // 염기성 약물: 위(pH 1.2)에서 이온화 → 위에서 용해
-                    effectiveSol = Math.max(sol_pH1_2, sol_pH6_8 * 0.5);
-                } else {
-                    // 중성 범위 (5-8): 평균 사용
-                    effectiveSol = (sol_pH1_2 + sol_pH6_8 * 2) / 3;
-                }
+            if (field.startsWith('solubility.')) {
+                const solField = field.split('.')[1];
+                c.solubility[solField] = value;
             } else {
-                // pKa 없으면 최대값 사용 (보수적)
-                effectiveSol = Math.max(sol_pH1_2, sol_pH6_8, sol_feSSIF);
+                c[field] = value;
             }
-            
-            // FeSSIF 값이 크게 다르면 사용 (식이효과)
-            if (sol_feSSIF > effectiveSol * 1.5) {
-                effectiveSol = (effectiveSol + sol_feSSIF * 2) / 3;
-            }
-            
-            // Salt supersaturation (pKa 기반 추정)
-            let supersaturationRatio = 1.0;
-            if (pKa && pKa > 7) {
-                // 약염기는 salt form일 가능성 높음
-                supersaturationRatio = 1.5; // 보수적 추정
-            }
-            
-            // 부형제 효과
-            const formEffect = formulationDB[compound.formulation] || formulationDB.water;
-            effectiveSol = effectiveSol * supersaturationRatio * formEffect.solFactor;
-            
-            // 4. 투과도
-            let papp = parseFloat(compound.caco2) || parseFloat(compound.papp);
-            if (!papp) {
-                if (compound.permeability === 'high') papp = 20;
-                else if (compound.permeability === 'medium') papp = 10;
-                else papp = 3;
-            }
-            
-            // 5. 흡수율 계산 (개선된 알고리즘)
-            // Dose number (D0) 계산
-            const doseNumber = (dose * mw) / (250 * effectiveSol); // 250 mL = 위액량
-            
-            // Dissolution-limited
-            let solubilityLimited;
-            if (doseNumber > 1) {
-                // 용해도 제한
-                solubilityLimited = 1 / Math.sqrt(doseNumber);
-            } else {
-                solubilityLimited = 1.0;
-            }
-            
-            // Permeability-limited (안정화된 계산)
-            let permeabilityLimited;
-            
-            // Papp 범위별 안정적인 계산
-            if (papp < 1) {
-                // 극저투과도
-                if (mw < 350 && logP < 0.5) {
-                    permeabilityLimited = 0.7 + (papp * 0.2); // 친수성 저분자
-                } else {
-                    permeabilityLimited = Math.max(0.15, papp * 0.35);
-                }
-            } else if (papp < 3) {
-                // 저투과도 (1-3)
-                if (mw < 350 && logP < 0.5) {
-                    permeabilityLimited = 0.8 + (papp * 0.05);
-                } else {
-                    permeabilityLimited = 0.3 + (papp * 0.18);
-                }
-            } else if (papp < 10) {
-                // 중투과도 (3-10)
-                permeabilityLimited = 0.55 + (papp * 0.04);
-            } else if (papp < 20) {
-                // 고투과도 (10-20)
-                permeabilityLimited = 0.85 + (papp * 0.01);
-            } else {
-                // 극고투과도 (>20)
-                permeabilityLimited = Math.min(0.98, 0.95 + (papp - 20) * 0.001);
-            }
-            
-            // 입자크기 효과 (Noyes-Whitney)
-            const particleSize = parseFloat(compound.particleSize_D50) || 30;
-            const particleEffect = Math.min(2.0, Math.sqrt(100 / particleSize));
-            
-            // 최종 Fa
-            let Fa = solubilityLimited * permeabilityLimited * particleEffect;
-            
-            // 결정형 효과
-            if (compound.crystallinity === 'amorphous') Fa = Fa * 1.8;
-            
-            // LogP 효과 보정 (일반 범위) - logP_capped 정의
-            const logP_capped = Math.min(6, Math.max(-2, logP)); // -2 ~ 6 범위로 제한
-            
-            if (logP_capped > 5) {
-                // 고지질성: 지질막 통과는 잘 하지만 수성층에서 문제
-                const logP_penalty = (logP_capped - 5) * 0.12;
-                Fa = Fa * (1 - logP_penalty);
-            }
-            
-            // 고용해도 약물 보정 (BCS I, III)
-            if (effectiveSol > 5000 && doseNumber < 0.5) {
-                Fa = Math.max(Fa, 0.75); // 용해도 충분하면 최소 75% 흡수
-            }
-            
-            // 저투과도 + 고용해도 약물 (BCS III)
-            if (papp < 2 && effectiveSol > 5000 && mw < 400) {
-                // 아테놀롤 타입: 친수성 저분자 + 고용해도
-                Fa = Math.max(Fa, 0.85); // 최소 85%
-            }
-            
-            // 저투과도 + 중간용해도 약물 (BCS IV 경향)
-            if (papp < 2 && effectiveSol > 1000 && effectiveSol < 5000 && doseNumber < 1) {
-                // 발사르탄 타입: 용해도는 충분하지만 투과도가 낮음
-                Fa = Math.max(Fa, 0.28); // 최소 28%
-            }
-            
-            Fa = Math.min(0.98, Fa);
-            
-            // 6. 초회통과 효과 (초고간대사 약물 대응)
-            let hepCL = parseFloat(compound.hepClearance);
-            
-            // 간 CL 자동 추정 (더 정교하게)
-            if (!hepCL) {
-                // LogP와 pKa 조합으로 간대사 예측
-                const main_pKa = pKa ? (String(pKa).split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v))[0] || parseFloat(pKa)) : 7;
-                
-                if (logP > 3 && logP < 5.5 && main_pKa > 7.5) {
-                    // 중고지질성 + 염기성 → 매우 높은 간대사 (프로프라놀롤 타입)
-                    hepCL = settings.CL * 0.75;
-                } else if (logP > 3.5 && logP < 5 && main_pKa < 5.5) {
-                    // 중고지질성 + 산성 → 중간-높은 간대사 (아토르바스타틴 타입)
-                    hepCL = settings.CL * 0.55;
-                } else if (logP > 3 && logP < 5.5 && main_pKa < 5) {
-                    // 중고지질성 + 산성 → 중간 간대사 (디클로페낙 타입)
-                    hepCL = settings.CL * 0.35;
-                } else if (logP > 2.5 && logP < 5) {
-                    // 중간 지질성
-                    hepCL = settings.CL * 0.45;
-                } else if (logP < 1) {
-                    // 친수성 → 낮은 간대사
-                    hepCL = settings.CL * 0.08;
-                } else {
-                    hepCL = settings.CL * 0.3;
-                }
-            }
-            
-            // 간 추출비 계산 (초고추출비 약물 대응)
-            const liverBloodFlow = species === 'dog' ? 30 : species === 'rat' ? 70 : 90;
-            
-            let E = hepCL / liverBloodFlow;
-            
-            // 추출비 모델 선택
-            if (E > 0.85) {
-                // 초고추출비: Well-stirred model + 비선형 강화
-                E = E / (E + (1 - E) * 0.4);
-            } else if (E > 0.7) {
-                // 고추출비: Well-stirred model
-                E = E / (E + (1 - E) * 0.6);
-            }
-            
-            E = Math.min(0.99, E);
-            const Fh = 1 - E;
-            
-            // 장벽 대사 (안정화)
-            let Fg = 0.97;
-            const main_pKa = pKa ? (String(pKa).split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v))[0] || parseFloat(pKa)) : 7;
-            
-            if (logP > 3.5 && main_pKa > 8) {
-                Fg = 0.88; // 염기성 + 고지질성
-            } else if (logP > 4.5) {
-                Fg = 0.92; // 고지질성
-            }
-            
-            // P-gp 효과 (정교화)
-            let pgpFactor = 1.0;
-            if (compound.pgpSubstrate === 'yes') {
-                // P-gp는 저투과도 약물에 더 큰 영향
-                // 하지만 LogP 높으면 transcellular로 일부 회피
-                if (papp < 2 && logP < 2) {
-                    pgpFactor = 0.65; // 저투과도 + 친수성 + P-gp = 큰 영향
-                } else if (papp < 3) {
-                    pgpFactor = 0.72; // 저투과도 + P-gp (아토르바스타틴)
-                } else if (papp < 5) {
-                    pgpFactor = 0.78;
-                } else {
-                    pgpFactor = 0.88; // 고투과도는 영향 적음
-                }
-            }
-            
-            // 7. 경로별 생체이용률
-            let F;
-            if (route === 'IV') F = 1.0;
-            else if (route === 'PO') F = Fa * Fg * Fh * pgpFactor;
-            else if (route === 'SC') F = 0.85 * Fa;
-            else if (route === 'IP') F = 0.9 * Fa * Fh;
-            else if (route === 'IM') F = 0.9 * Fa;
-            else F = Fa * Fg * Fh;
-            
-            F = Math.min(0.98, F);
-            
-            // 8. PK 파라미터 (일반 약물 범위로 제한)
-            let fu = parseFloat(compound.fu);
-            if (!fu && compound.proteinBinding) {
-                fu = (100 - parseFloat(compound.proteinBinding)) / 100;
-            }
-            if (!fu) fu = 0.05;
-            
-            const bloodPlasmaRatio = parseFloat(compound.bloodPlasmaRatio) || 1.0;
-            
-            // Vd 계산 (일반 약물 범위) - logP_capped 재사용
-            let Vd_base = settings.Vd;
-            
-            // LogP 기반 조직 분포 (극단값 제한) - 이미 위에서 정의됨
-            
-            if (logP_capped > 3) {
-                Vd_base = Vd_base * (1 + (logP_capped - 3) * 0.6);
-            } else if (logP_capped < 1) {
-                Vd_base = Vd_base * (0.6 + logP_capped * 0.4);
-            } else {
-                Vd_base = Vd_base * (1 + (logP_capped - 1) * 0.3);
-            }
-            
-            // fu 기반 보정 (일반 범위)
-            const fu_capped = Math.max(0.001, Math.min(1, fu)); // 0.001 ~ 1.0
-            
-            if (fu_capped < 0.05) {
-                // 고단백결합
-                Vd = Vd_base * Math.min(15, 1 / fu_capped) * 0.6;
-            } else if (fu_capped > 0.8) {
-                // 저단백결합
-                Vd = Vd_base * 1.2;
-            } else {
-                Vd = Vd_base / fu_capped;
-            }
-            
-            Vd = Vd * bloodPlasmaRatio;
-            Vd = Math.max(0.5, Math.min(50, Vd)); // 일반 약물 범위: 0.5-50 L/kg
-            
-            // CL 계산 (간대사 없는 약물 보정)
-            let CL;
-            if (hepCL < 5) {
-                // 간대사 거의 없음 (신장 배설 주도)
-                CL = settings.CL * 0.3 + hepCL; // 낮게 유지
-            } else {
-                CL = (settings.CL * (400 / mw) * 0.7) + (hepCL * 0.3);
-            }
-            
-            CL = Math.max(5, CL); // 최소 5 mL/min/kg
-            
-            // ka 계산
-            let ka = settings.ka * formEffect.kaFactor * particleEffect * 0.5;
-            if (route === 'IV') ka = 99;
-            else if (route === 'SC') ka = ka * 0.5;
-            else if (route === 'IM') ka = ka * 0.6;
-            
-            // 난용성 약물은 흡수가 느림
-            if (effectiveSol < 10) {
-                ka = ka * 0.6;
-            }
-            
-            const ke = (CL * 60) / (Vd * 1000);
-            
-            // 9. 시간별 농도
-            const timePoints = [];
-            for (let t = 0; t <= 24; t += 0.5) {
-                let conc;
-                
-                if (route === 'IV') {
-                    conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * Math.exp(-ke * t);
-                } else {
-                    if (ka > ke) {
-                        conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * 
-                               (ka / (ka - ke)) * (Math.exp(-ke * t) - Math.exp(-ka * t));
-                    } else {
-                        // Flip-flop kinetics
-                        conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * 
-                               (ka / (ke - ka)) * (Math.exp(-ka * t) - Math.exp(-ke * t));
-                    }
-                }
-                
-                timePoints.push({ time: t, concentration: Math.max(0, conc) });
-            }
-            
-            // 10. AUC, Cmax, Tmax
-            let auc = 0;
-            for (let i = 1; i < timePoints.length; i++) {
-                auc += (timePoints[i].concentration + timePoints[i-1].concentration) / 2 * 0.5;
-            }
-            
-            const Cmax = Math.max(...timePoints.map(p => p.concentration));
-            const Tmax = timePoints.find(p => p.concentration === Cmax)?.time || 0;
-            
-            compound.pkResult = {
-                profile: timePoints,
-                params: {
-                    Cmax: Cmax.toFixed(2),
-                    Tmax: Tmax.toFixed(1),
-                    AUC: auc.toFixed(2),
-                    Vd: Vd.toFixed(2),
-                    CL: CL.toFixed(2),
-                    t_half: (0.693 / ke).toFixed(2),
-                    F: (F * 100).toFixed(1),
-                    Fa: (Fa * 100).toFixed(1),
-                    Fg: (Fg * 100).toFixed(1),
-                    Fh: (Fh * 100).toFixed(1),
-                    ka: ka.toFixed(3),
-                    ke: ke.toFixed(3)
-                }
-            };
-            
-            return true;
-        }
-
-        function calculateAll() {
-            clearAlerts();
-            let success = 0, fail = 0;
-            for (let c of compounds) {
-                if (calculatePK(c)) success++;
-                else fail++;
-            }
-            if (success > 0) addAlert('success', `✅ ${success}개 물질 계산 완료!`);
-            if (fail > 0) addAlert('error', `❌ ${fail}개 물질 계산 실패`);
-        }
-
-        function validateStep1() {
-            clearAlerts();
-            if (compounds.length === 0) {
-                addAlert('warning', '최소 1개 물질을 추가하세요.');
-                return false;
-            }
-            
-            for (let c of compounds) {
-                if (!c.molecularWeight) {
-                    addAlert('error', `${c.name}: 분자량 필수`);
-                    return false;
-                }
-                if (!c.dose) {
-                    addAlert('error', `${c.name}: 투여 용량 필수`);
-                    return false;
-                }
-                const solCount = Object.values(c.solubility).filter(v => v !== '').length;
-                if (solCount === 0) {
-                    addAlert('error', `${c.name}: 최소 1개 용해도 입력`);
-                    return false;
-                }
-            }
-            return true;
         }
 
         function updateStepIndicator() {
-            ['step1', 'step2', 'step3'].forEach((id, idx) => {
-                document.getElementById(id).className = 'step' + (currentStep === idx + 1 ? ' active' : '');
-            });
-        }
-
-        function nextStep() {
-            if (currentStep === 1 && !validateStep1()) return;
-            if (currentStep < 3) currentStep++;
-            if (currentStep === 3) calculateAll();
-            render();
-        }
-
-        function prevStep() { if (currentStep > 1) currentStep--; render(); }
-
-        function toggleCollapsible(id) {
-            const el = document.getElementById(id);
-            el.classList.toggle('active');
+            for (let i = 1; i <= 3; i++) {
+                const el = document.getElementById('step' + i);
+                if (el) el.classList.toggle('active', i === currentStep);
+            }
         }
 
         function renderStep1() {
             return `
-                <div class="info-box">
-                    <strong>📌 필수 입력 항목</strong><br>
-                    ✓ 분자량, 용량, 용해도 (최소 1개), 투여경로<br>
-                    <strong>🎯 권장 입력 (정확도 ↑)</strong><br>
-                    ✓ <strong>pKa (산/염기 구분에 필수! 여러 개면 쉼표로 구분)</strong>, Caco-2, LogP, 간 CL (초회통과대사 큰 약물), 입자크기<br>
-                    <strong>💡 산성 약물 (pKa < 5):</strong> pH 6.8 용해도 반드시 입력 | <strong>염기성 약물 (pKa > 8):</strong> pH 1.2 용해도 반드시 입력
-                </div>
-
-                <div class="flex-between" style="margin-bottom: 16px;">
-                    <h2 style="font-size: 16px;">등록 물질: ${compounds.length}개</h2>
-                    <button class="btn btn-secondary" onclick="addCompound()" style="padding: 8px 16px;">➕ 물질 추가</button>
-                </div>
-
-                ${compounds.length === 0 ? '<div class="alert alert-info">물질을 추가하여 시작하세요</div>' : ''}
-
-                ${compounds.map(c => `
-                    <div class="compound-item">
-                        <div class="flex-between" style="margin-bottom: 12px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <div class="color-indicator" style="background: ${c.color};"></div>
-                                <input type="text" value="${c.name}" onchange="updateCompound(${c.id}, 'name', null, this.value); render();"
-                                       style="font-weight: 600; border: 1px solid #e5e7eb; padding: 6px 10px; border-radius: 6px; width: 250px; font-size: 14px;">
-                            </div>
-                            <button onclick="removeCompound(${c.id}); render();" 
-                                    style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                                🗑️ 삭제
-                            </button>
-                        </div>
-
-                        <!-- 필수 섹션 -->
-                        <div class="section">
-                            <h2>🎯 필수 항목</h2>
-                            
-                            <h3 style="margin-top: 12px;">💊 투여 경로</h3>
-                            <div class="route-grid">
-                                ${['PO', 'IV', 'SC', 'IP', 'IM'].map(route => `
-                                    <div class="route-btn ${c.route === route ? 'selected' : ''}"
-                                         onclick="updateCompound(${c.id}, 'route', null, '${route}'); render();">
-                                        <strong>${route}</strong><br>
-                                        <span style="font-size: 10px; color: #6b7280;">
-                                            ${route === 'PO' ? '경구' : route === 'IV' ? '정맥' : route === 'SC' ? '피하' : route === 'IP' ? '복강' : '근육'}
-                                        </span>
-                                    </div>
-                                `).join('')}
-                            </div>
-
-                            <h3 style="margin-top: 12px;">📊 기본 물성</h3>
-                            <div class="grid">
-                                <div class="form-group">
-                                    <label>분자량 (MW) <span class="req">*</span></label>
-                                    <input type="number" value="${c.molecularWeight}" placeholder="266.34"
-                                           onchange="updateCompound(${c.id}, 'molecularWeight', null, this.value)">
-                                    <div class="help-box">Salt form의 전체 분자량 입력</div>
-                                </div>
-                                <div class="form-group">
-                                    <label>투여 용량 (mg/kg) <span class="req">*</span></label>
-                                    <input type="number" value="${c.dose}"
-                                           onchange="updateCompound(${c.id}, 'dose', null, this.value)">
-                                </div>
-                                <div class="form-group">
-                                    <label>pKa <span class="opt">(권장)</span></label>
-                                    <input type="text" value="${c.pKa}" placeholder="5.5 또는 3.9, 4.7"
-                                           onchange="updateCompound(${c.id}, 'pKa', null, this.value)">
-                                    <div class="help-box">여러 개면 쉼표로 구분 (예: 3.9, 4.7)</div>
-                                </div>
-                                <div class="form-group">
-                                    <label>LogP <span class="opt">(권장)</span></label>
-                                    <input type="number" step="0.1" value="${c.logP}" placeholder="2.5"
-                                           onchange="updateCompound(${c.id}, 'logP', null, this.value)">
-                                </div>
-                            </div>
-
-                            <h3 style="margin-top: 12px;">💧 용해도 데이터 (μg/mL) <span class="req">*최소 1개</span></h3>
-                            <div class="grid">
-                                ${Object.entries({
-                                    pH1_2: 'pH 1.2', pH4_5: 'pH 4.5', pH6_8: 'pH 6.8',
-                                    faSSIF: 'FaSSIF', faSSGF: 'FaSSGF', feSSIF: 'FeSSIF', water: '정제수'
-                                }).map(([key, label]) => `
-                                    <div class="form-group">
-                                        <label>${label}</label>
-                                        <input type="number" step="0.01" value="${c.solubility[key]}"
-                                               onchange="updateCompound(${c.id}, 'solubility', '${key}', this.value)">
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <!-- ADME 섹션 (접기/펼치기) -->
-                        <div class="collapsible" onclick="toggleCollapsible('adme_${c.id}')">
-                            ⚗️ ADME 파라미터 (정확도 향상) ▼
-                        </div>
-                        <div id="adme_${c.id}" class="collapsible-content">
-                            <div class="grid">
-                                <div class="form-group">
-                                    <label>Caco-2 Papp (10⁻⁶ cm/s)</label>
-                                    <input type="number" step="0.1" value="${c.caco2}" placeholder="12"
-                                           onchange="updateCompound(${c.id}, 'caco2', null, this.value)">
-                                    <div class="help-box">투과도 측정값</div>
-                                </div>
-                                <div class="form-group">
-                                    <label>투과도 등급</label>
-                                    <select value="${c.permeability}"
-                                            onchange="updateCompound(${c.id}, 'permeability', null, this.value)">
-                                        <option value="high">High (BCS I, III)</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="low">Low (BCS II, IV)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>단백결합률 (%)</label>
-                                    <input type="number" value="${c.proteinBinding}" placeholder="95"
-                                           onchange="updateCompound(${c.id}, 'proteinBinding', null, this.value)">
-                                </div>
-                                <div class="form-group">
-                                    <label>유리분율 fu (0-1)</label>
-                                    <input type="number" step="0.01" value="${c.fu}" placeholder="0.05"
-                                           onchange="updateCompound(${c.id}, 'fu', null, this.value)">
-                                </div>
-                                <div class="form-group">
-                                    <label>간 CL (mL/min/kg)</label>
-                                    <input type="number" value="${c.hepClearance}" placeholder="25"
-                                           onchange="updateCompound(${c.id}, 'hepClearance', null, this.value)">
-                                </div>
-                                <div class="form-group">
-                                    <label>Blood/Plasma ratio</label>
-                                    <input type="number" step="0.1" value="${c.bloodPlasmaRatio}" placeholder="1.0"
-                                           onchange="updateCompound(${c.id}, 'bloodPlasmaRatio', null, this.value)">
-                                </div>
-                                <div class="form-group">
-                                    <label>P-gp 기질</label>
-                                    <select value="${c.pgpSubstrate}"
-                                            onchange="updateCompound(${c.id}, 'pgpSubstrate', null, this.value)">
-                                        <option value="unknown">모름</option>
-                                        <option value="yes">Yes</option>
-                                        <option value="no">No</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 제형 섹션 -->
-                        <div class="collapsible" onclick="toggleCollapsible('form_${c.id}')">
-                            💊 제형 및 입자 특성 ▼
-                        </div>
-                        <div id="form_${c.id}" class="collapsible-content">
-                            <div class="grid">
-                                <div class="form-group">
-                                    <label>부형제</label>
-                                    <select value="${c.formulation}"
-                                            onchange="updateCompound(${c.id}, 'formulation', null, this.value);">
-                                        ${Object.entries(formulationDB).map(([k, v]) => 
-                                            `<option value="${k}">${v.label}</option>`
-                                        ).join('')}
-                                    </select>
-                                </div>
-                                ${c.formulation === 'custom' ? `
-                                <div class="form-group">
-                                    <label>직접 입력</label>
-                                    <input type="text" value="${c.customFormulation}" placeholder="예: 0.3% Tween in CMC"
-                                           onchange="updateCompound(${c.id}, 'customFormulation', null, this.value)">
-                                </div>
-                                ` : ''}
-                                <div class="form-group">
-                                    <label>입자크기 D50 (μm)</label>
-                                    <input type="number" value="${c.particleSize_D50}" placeholder="50"
-                                           onchange="updateCompound(${c.id}, 'particleSize_D50', null, this.value)">
-                                </div>
-                                <div class="form-group">
-                                    <label>입자크기 D90 (μm)</label>
-                                    <input type="number" value="${c.particleSize_D90}" placeholder="100"
-                                           onchange="updateCompound(${c.id}, 'particleSize_D90', null, this.value)">
-                                </div>
-                                <div class="form-group">
-                                    <label>결정형</label>
-                                    <select value="${c.crystallinity}"
-                                            onchange="updateCompound(${c.id}, 'crystallinity', null, this.value)">
-                                        <option value="crystalline">Crystalline</option>
-                                        <option value="amorphous">Amorphous</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
+                <div class="section">
+                    <div class="flex-between">
+                        <h2>📋 물질 정보 입력</h2>
+                        <button class="btn btn-secondary" onclick="addCompound()">
+                            ➕ 물질 추가
+                        </button>
                     </div>
-                `).join('')}
+                    
+                    ${compounds.length === 0 ? `
+                        <div class="alert alert-info" style="margin-top: 16px;">
+                            <strong>ℹ️ 시작하기</strong><br>
+                            "물질 추가" 버튼을 눌러 비교할 물질을 입력하세요<br>
+                            최소 1개 이상의 물질이 필요합니다
+                        </div>
+                    ` : ''}
 
-                ${compounds.length > 0 ? `
-                    <button class="btn btn-primary" onclick="nextStep()" style="margin-top: 16px;">
-                        ➡️ NEXT: 종 설정으로 이동
-                    </button>
-                ` : ''}
+                    <div id="compounds-container">
+                        ${compounds.map((c, idx) => `
+                            <div class="compound-item">
+                                <div class="compound-header">
+                                    <span class="color-indicator" style="background: ${colors[idx % colors.length]};"></span>
+                                    <input type="text" 
+                                           class="compound-name-editable" 
+                                           value="${c.name}" 
+                                           onchange="updateCompound(${c.id}, 'name', this.value); render();"
+                                           placeholder="물질명 입력 (필수)">
+                                    ${compounds.length > 1 ? `
+                                        <button class="btn" onclick="removeCompound(${c.id})" 
+                                                style="background: #ef4444; color: white; padding: 6px 12px; font-size: 12px;">
+                                            🗑️ 삭제
+                                        </button>
+                                    ` : ''}
+                                </div>
+
+                                <div class="grid">
+                                    <div class="form-group">
+                                        <label>투여 경로 <span class="req">*</span> ${createTooltip('route')}</label>
+                                        <select onchange="updateCompound(${c.id}, 'route', this.value)">
+                                            <option value="PO" ${c.route === 'PO' ? 'selected' : ''}>PO (경구)</option>
+                                            <option value="IV" ${c.route === 'IV' ? 'selected' : ''}>IV (정맥)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>투여량 (mg/kg) <span class="req">*</span> ${createTooltip('dose')}</label>
+                                        <input type="number" step="0.1" value="${c.dose}" 
+                                               onchange="updateCompound(${c.id}, 'dose', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>분자량 (g/mol) <span class="req">*</span> ${createTooltip('molecularWeight')}</label>
+                                        <input type="number" step="0.01" value="${c.molecularWeight}" 
+                                               onchange="updateCompound(${c.id}, 'molecularWeight', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>pKa <span class="opt">(선택)</span> ${createTooltip('pKa')}</label>
+                                        <input type="number" step="0.1" value="${c.pKa}" 
+                                               onchange="updateCompound(${c.id}, 'pKa', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>LogP <span class="req">*</span> ${createTooltip('logP')}</label>
+                                        <input type="number" step="0.1" value="${c.logP}" 
+                                               onchange="updateCompound(${c.id}, 'logP', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>LogD (pH 7.4) <span class="opt">(선택)</span> ${createTooltip('logD')}</label>
+                                        <input type="number" step="0.1" value="${c.logD}" 
+                                               onchange="updateCompound(${c.id}, 'logD', this.value)">
+                                    </div>
+                                </div>
+
+                                <h3 style="margin-top: 20px;">💧 용해도 데이터 ${createTooltip('solubility')}</h3>
+                                <div class="help-box">
+                                    pH별로 하나 이상의 용해도를 입력하면 더 정확한 예측이 가능합니다. 단위: μg/mL
+                                </div>
+                                <div class="grid">
+                                    <div class="form-group">
+                                        <label>pH 1.2 (HCl buffer) <span class="opt">(선택)</span></label>
+                                        <input type="number" step="0.01" value="${c.solubility.pH1_2}" 
+                                               onchange="updateCompound(${c.id}, 'solubility.pH1_2', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>pH 4.5 (Acetate buffer) <span class="opt">(선택)</span></label>
+                                        <input type="number" step="0.01" value="${c.solubility.pH4_5}" 
+                                               onchange="updateCompound(${c.id}, 'solubility.pH4_5', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>pH 6.8 (Phosphate buffer) <span class="opt">(선택)</span></label>
+                                        <input type="number" step="0.01" value="${c.solubility.pH6_8}" 
+                                               onchange="updateCompound(${c.id}, 'solubility.pH6_8', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>FaSSIF (인공장액, 식전) <span class="opt">(선택)</span></label>
+                                        <input type="number" step="0.01" value="${c.solubility.faSSIF}" 
+                                               onchange="updateCompound(${c.id}, 'solubility.faSSIF', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>FaSSGF (인공위액) <span class="opt">(선택)</span></label>
+                                        <input type="number" step="0.01" value="${c.solubility.faSSGF}" 
+                                               onchange="updateCompound(${c.id}, 'solubility.faSSGF', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>FeSSIF (인공장액, 식후) <span class="opt">(선택)</span></label>
+                                        <input type="number" step="0.01" value="${c.solubility.feSSIF}" 
+                                               onchange="updateCompound(${c.id}, 'solubility.feSSIF', this.value)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>정제수 <span class="opt">(선택)</span></label>
+                                        <input type="number" step="0.01" value="${c.solubility.water}" 
+                                               onchange="updateCompound(${c.id}, 'solubility.water', this.value)">
+                                    </div>
+                                </div>
+
+                                <div class="collapsible-content">
+                                    <h3>🧪 ADME 파라미터</h3>
+                                    <div class="help-box">
+                                        Caco-2 또는 BCS Class 입력으로 기본 예측 가능. 간 클리어런스 입력 시 정확도 크게 향상.
+                                    </div>
+                                    <div class="grid">
+                                        <div class="form-group">
+                                            <label>Caco-2 (10⁻⁶ cm/s) <span class="opt">(선택)</span> ${createTooltip('caco2')}</label>
+                                            <input type="number" step="0.01" value="${c.caco2}" 
+                                                   onchange="updateCompound(${c.id}, 'caco2', this.value)">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>BCS Class ${createTooltip('bcsClass')}</label>
+                                            <select onchange="updateCompound(${c.id}, 'bcsClass', this.value)">
+                                                <option value="1" ${c.bcsClass === '1' ? 'selected' : ''}>Class I (고용해도/고투과성)</option>
+                                                <option value="2" ${c.bcsClass === '2' ? 'selected' : ''}>Class II (저용해도/고투과성)</option>
+                                                <option value="3" ${c.bcsClass === '3' ? 'selected' : ''}>Class III (고용해도/저투과성)</option>
+                                                <option value="4" ${c.bcsClass === '4' ? 'selected' : ''}>Class IV (저용해도/저투과성)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>단백결합률 (%) <span class="opt">(선택)</span> ${createTooltip('proteinBinding')}</label>
+                                            <input type="number" step="0.1" min="0" max="100" value="${c.proteinBinding}" 
+                                                   onchange="updateCompound(${c.id}, 'proteinBinding', this.value)">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>간 CL (mL/min/kg) <span class="opt">(선택)</span> ${createTooltip('hepClearance')}</label>
+                                            <input type="number" step="0.1" value="${c.hepClearance}" 
+                                                   onchange="updateCompound(${c.id}, 'hepClearance', this.value)">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="collapsible-content">
+                                    <h3>💊 제형 및 입자 특성</h3>
+                                    <div class="grid">
+                                        <div class="form-group">
+                                            <label>부형제 ${createTooltip('formulation')}</label>
+                                            <select onchange="updateCompound(${c.id}, 'formulation', this.value)">
+                                                ${Object.entries(formulationDB).map(([key, val]) => 
+                                                    `<option value="${key}" ${c.formulation === key ? 'selected' : ''}>${val.label}</option>`
+                                                ).join('')}
+                                            </select>
+                                        </div>
+                                        ${c.formulation === 'custom' ? `
+                                            <div class="form-group">
+                                                <label>부형제명</label>
+                                                <input type="text" value="${c.customFormulation}" 
+                                                       onchange="updateCompound(${c.id}, 'customFormulation', this.value)">
+                                            </div>
+                                        ` : ''}
+                                        <div class="form-group">
+                                            <label>투여 부피 (mL/kg) <span class="opt">(선택)</span> ${createTooltip('doseVolume')}</label>
+                                            <input type="number" step="0.1" value="${c.doseVolume}" 
+                                                   onchange="updateCompound(${c.id}, 'doseVolume', this.value)">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>입자크기 D50 (μm) <span class="opt">(선택)</span> ${createTooltip('particleSize')}</label>
+                                            <input type="number" step="0.01" value="${c.particleSize_D50}" 
+                                                   onchange="updateCompound(${c.id}, 'particleSize_D50', this.value)">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>입자크기 D90 (μm) <span class="opt">(선택)</span> ${createTooltip('particleSize')}</label>
+                                            <input type="number" step="0.01" value="${c.particleSize_D90}" 
+                                                   onchange="updateCompound(${c.id}, 'particleSize_D90', this.value)">
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="validateAndNext()">
+                    다음 단계 →
+                </button>
             `;
+        }
+
+        function validateAndNext() {
+            clearAlerts();
+            
+            if (compounds.length === 0) {
+                addAlert('error', '최소 1개 이상의 물질을 입력해야 합니다');
+                return;
+            }
+            
+            for (let i = 0; i < compounds.length; i++) {
+                const c = compounds[i];
+                if (!c.name || c.name.trim() === '') {
+                    addAlert('error', `물질 ${i+1}: 물질명을 입력해주세요`);
+                    return;
+                }
+                if (!c.molecularWeight || !c.logP || !c.dose) {
+                    addAlert('error', `${c.name}: 필수 항목(분자량, LogP, 투여량)을 모두 입력해주세요`);
+                    return;
+                }
+            }
+            
+            currentStep = 2;
+            render();
         }
 
         function renderStep2() {
             return `
-                <div class="info-box">
-                    💡 비교 분석에 사용할 동물 종을 선택하고, 필요시 생리학적 파라미터를 조정하세요.
-                </div>
-                
                 <div class="section">
-                    <h2>🐾 실험 동물 종 선택</h2>
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-                        ${Object.entries(speciesSettings).map(([key, s]) => `
-                            <div onclick="selectedSpecies='${key}'; render();"
-                                 style="padding: 20px; border: 2px solid ${selectedSpecies === key ? '#4f46e5' : '#e5e7eb'};
-                                        border-radius: 8px; cursor: pointer; text-align: center;
-                                        background: ${selectedSpecies === key ? '#eff6ff' : 'white'}; transition: all 0.3s;">
-                                <div style="font-size: 24px; margin-bottom: 12px;">${s.label}</div>
-                                <div style="font-size: 12px; color: #6b7280; line-height: 1.6;">
-                                    체중: ${s.bodyWeight} kg<br>
-                                    Vd: ${s.Vd} L/kg<br>
-                                    CL: ${s.CL} mL/min/kg<br>
-                                    ka: ${s.ka} h⁻¹
+                    <h2>🐾 동물 종 선택</h2>
+                    <div class="help-box" style="margin-bottom: 16px;">
+                        예측할 동물 종을 선택하세요. 각 종마다 체중, 약동학 파라미터가 다르게 적용됩니다.
+                    </div>
+                    
+                    <div class="route-grid">
+                        ${Object.entries(speciesSettings).map(([key, val]) => `
+                            <div class="route-btn ${selectedSpecies === key ? 'selected' : ''}" 
+                                 onclick="selectedSpecies='${key}'; render();">
+                                <div style="font-size: 24px; margin-bottom: 4px;">${val.label.split(' ')[0]}</div>
+                                <div style="font-size: 12px;">${val.label.split(' ').slice(1).join(' ')}</div>
+                                <div style="font-size: 10px; color: #6b7280; margin-top: 4px;">
+                                    BW: ${val.bodyWeight} kg<br>
+                                    Vd: ${val.Vd} L/kg
                                 </div>
                             </div>
                         `).join('')}
                     </div>
                 </div>
 
-                <div class="section">
-                    <h2>⚙️ ${speciesSettings[selectedSpecies].label} 파라미터 조정 (선택)</h2>
-                    <div class="grid">
-                        <div class="form-group">
-                            <label>체중 (kg)</label>
-                            <input type="number" step="0.001" value="${speciesSettings[selectedSpecies].bodyWeight}"
-                                   onchange="speciesSettings['${selectedSpecies}'].bodyWeight = parseFloat(this.value)">
-                        </div>
-                        <div class="form-group">
-                            <label>분포용적 Vd (L/kg)</label>
-                            <input type="number" step="0.1" value="${speciesSettings[selectedSpecies].Vd}"
-                                   onchange="speciesSettings['${selectedSpecies}'].Vd = parseFloat(this.value)">
-                        </div>
-                        <div class="form-group">
-                            <label>클리어런스 CL (mL/min/kg)</label>
-                            <input type="number" step="1" value="${speciesSettings[selectedSpecies].CL}"
-                                   onchange="speciesSettings['${selectedSpecies}'].CL = parseFloat(this.value)">
-                        </div>
-                        <div class="form-group">
-                            <label>흡수속도상수 ka (1/h)</label>
-                            <input type="number" step="0.1" value="${speciesSettings[selectedSpecies].ka}"
-                                   onchange="speciesSettings['${selectedSpecies}'].ka = parseFloat(this.value)">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex-between">
-                    <button class="btn" onclick="prevStep()" style="background: #6b7280; color: white; width: 48%;">
-                        ⬅️ 이전: 물질 입력
+                <div class="flex-between" style="margin-top: 20px;">
+                    <button class="btn" onclick="currentStep=1; render();" 
+                            style="background: #6b7280; color: white; width: 48%;">
+                        ← 이전
                     </button>
-                    <button class="btn btn-primary" onclick="nextStep()" style="width: 48%;">
-                        ➡️ 결과 분석 보기
+                    <button class="btn btn-primary" onclick="calculatePK()" style="width: 48%;">
+                        🧮 PK 예측 실행
                     </button>
                 </div>
             `;
         }
 
+        function calculatePK() {
+            clearAlerts();
+            addAlert('info', '약동학 파라미터를 계산 중입니다...');
+            
+            const species = speciesSettings[selectedSpecies];
+            
+            compounds.forEach((c, idx) => {
+                c.color = colors[idx % colors.length];
+                
+                // 용량
+                let effectiveDose = parseFloat(c.dose);
+                
+                // 용해도 계산
+                let solubility = 10;
+                const solData = c.solubility;
+                if (solData.pH6_8) solubility = parseFloat(solData.pH6_8);
+                else if (solData.faSSIF) solubility = parseFloat(solData.faSSIF);
+                else if (solData.pH4_5) solubility = parseFloat(solData.pH4_5);
+                else if (solData.water) solubility = parseFloat(solData.water);
+                
+                // 제형 효과
+                const formEffect = formulationDB[c.formulation] || formulationDB['water'];
+                solubility *= formEffect.solFactor;
+                
+                // 투과성 - Caco-2 또는 BCS Class로부터
+                let perm = 5.0;
+                if (c.caco2) {
+                    perm = parseFloat(c.caco2);
+                } else {
+                    const bcsClass = c.bcsClass || '2';
+                    if (bcsClass === '1' || bcsClass === '2') perm = 15.0;
+                    else if (bcsClass === '3' || bcsClass === '4') perm = 2.0;
+                }
+                
+                const logP = parseFloat(c.logP);
+                const logD = c.logD ? parseFloat(c.logD) : logP;
+                
+                // LogD를 사용한 투과성 보정
+                perm *= Math.pow(10, Math.min(logD * 0.35, 1.5));
+                
+                // 흡수율 - BCS Class 고려
+                let F = 0.5;
+                const bcsClass = c.bcsClass || '2';
+                
+                if (bcsClass === '1') {
+                    F = 0.85;
+                } else if (bcsClass === '2') {
+                    if (solubility > 100) F = 0.75;
+                    else if (solubility > 10) F = 0.5;
+                    else if (solubility > 1) F = 0.3;
+                    else F = 0.15;
+                } else if (bcsClass === '3') {
+                    F = 0.45;
+                } else if (bcsClass === '4') {
+                    if (solubility > 10) F = 0.3;
+                    else if (solubility > 1) F = 0.2;
+                    else F = 0.1;
+                }
+                
+                if (logD > 4) F *= 0.85;
+                
+                // 투여 부피 효과
+                if (c.doseVolume) {
+                    const volume = parseFloat(c.doseVolume);
+                    if (volume > 15) F *= 1.1;
+                    else if (volume < 5) F *= 0.9;
+                }
+                
+                // 초회통과 효과
+                let clh = 0;
+                if (c.hepClearance) {
+                    clh = parseFloat(c.hepClearance);
+                } else {
+                    clh = species.CL * (1 + logD * 0.1);
+                }
+                
+                if (clh > 0 && c.route === 'PO') {
+                    const liverFlow = 70;
+                    const extractionRatio = Math.min(clh / liverFlow, 0.9);
+                    F *= (1 - extractionRatio);
+                }
+                
+                if (c.route === 'IV') F = 1.0;
+                
+                // 분포용적 - LogD 기반
+                let Vd = species.Vd;
+                if (logD > 3) Vd *= (1 + (logD - 3) * 0.6);
+                else if (logD < 0) Vd *= 0.7;
+                
+                // 단백결합 효과
+                if (c.proteinBinding) {
+                    const pb = parseFloat(c.proteinBinding);
+                    const fu = (100 - pb) / 100;
+                    if (fu < 0.1) Vd *= 0.7;
+                }
+                
+                // 클리어런스
+                let CL = clh;
+                
+                const k_el = CL / Vd;
+                const t_half = 0.693 / k_el;
+                
+                // 흡수속도상수
+                let ka = species.ka * formEffect.kaFactor;
+                if (c.particleSize_D50) {
+                    const d50 = parseFloat(c.particleSize_D50);
+                    ka *= Math.pow(50 / d50, 0.5);
+                }
+                
+                // 농도 계산
+                const MW = parseFloat(c.molecularWeight);
+                const dose_mg = effectiveDose * species.bodyWeight * 1000;
+                const dose_umol = (dose_mg / MW) * 1000;
+                const dose_absorbed = dose_umol * F;
+                
+                const Vd_mL = Vd * species.bodyWeight * 1000;
+                const C0 = (dose_absorbed / Vd_mL) * MW;
+                
+                let profile = [];
+                for (let t = 0; t <= 24; t += 0.25) {
+                    let conc = 0;
+                    if (c.route === 'IV') {
+                        conc = C0 * Math.exp(-k_el * t);
+                    } else {
+                        conc = (C0 * ka / (ka - k_el)) * (Math.exp(-k_el * t) - Math.exp(-ka * t));
+                    }
+                    profile.push({ time: t, concentration: Math.max(conc, 0) });
+                }
+                
+                const Cmax = Math.max(...profile.map(p => p.concentration));
+                const Tmax = profile.find(p => p.concentration === Cmax)?.time || 0;
+                const AUC = profile.reduce((sum, p, i, arr) => {
+                    if (i === 0) return 0;
+                    return sum + (arr[i-1].concentration + p.concentration) * 0.25 / 2;
+                }, 0);
+                
+                // fu 계산 (결과 표시용)
+                let fu = 0.1;
+                if (c.proteinBinding) {
+                    fu = (100 - parseFloat(c.proteinBinding)) / 100;
+                } else {
+                    fu = 1 / (1 + Math.pow(10, logD - 1.5));
+                }
+                
+                c.pkResult = {
+                    params: { Cmax: Cmax.toFixed(2), Tmax: Tmax.toFixed(2), AUC: AUC.toFixed(2), 
+                              t_half: t_half.toFixed(2), F: (F * 100).toFixed(0), Vd: Vd.toFixed(2), 
+                              CL: CL.toFixed(2), fu: fu.toFixed(3) },
+                    profile: profile
+                };
+            });
+            
+            clearAlerts();
+            addAlert('success', '약동학 예측이 완료되었습니다!');
+            currentStep = 3;
+            render();
+        }
+
         function renderStep3() {
             const calc = compounds.filter(c => c.pkResult);
-            if (calc.length === 0) {
-                return '<div class="alert alert-warning">PK 계산 결과가 없습니다.</div>';
-            }
+            if (calc.length === 0) return '<div class="alert alert-error">예측 결과가 없습니다</div>';
 
             return `
                 <div class="section">
-                    <h2>📈 ${speciesSettings[selectedSpecies].label} - PK 프로파일 비교</h2>
-                    <div class="chart-container"><canvas id="pkChart"></canvas></div>
-                </div>
+                    <h2>📊 예측 결과 - ${speciesSettings[selectedSpecies].label}</h2>
+                    
+                    <div class="chart-container">
+                        <canvas id="pkChart"></canvas>
+                    </div>
 
-                <div class="section">
-                    <h2>📊 PK 파라미터 비교표</h2>
+                    <h3 style="margin-top: 24px;">📈 약동학 파라미터 요약</h3>
                     <table class="comparison-table">
                         <thead>
                             <tr>
-                                <th>물질명</th>
+                                <th>물질</th>
                                 <th>경로</th>
-                                <th>C<sub>max</sub><br>(ng/mL)</th>
-                                <th>T<sub>max</sub><br>(h)</th>
-                                <th>AUC<br>(ng·h/mL)</th>
-                                <th>t<sub>½</sub><br>(h)</th>
-                                <th>생체이용률<br>BA (F, %)</th>
-                                <th>소화관흡수율<br>Fa (%)</th>
-                                <th>장벽통과율<br>Fg (%)</th>
-                                <th>간통과율<br>Fh (%)</th>
-                                <th>V<sub>d</sub><br>(L/kg)</th>
-                                <th>CL<br>(mL/min/kg)</th>
+                                <th>Cmax (ng/mL)</th>
+                                <th>Tmax (h)</th>
+                                <th>AUC (ng·h/mL)</th>
+                                <th>t½ (h)</th>
+                                <th>F (%)</th>
+                                <th>Vd (L/kg)</th>
+                                <th>CL (mL/min/kg)</th>
+                                <th>fu</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${calc.map(c => `
                                 <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 6px;">
-                                            <div class="color-indicator" style="background: ${c.color};"></div>
-                                            <strong>${c.name}</strong>
-                                        </div>
-                                    </td>
-                                    <td><span class="badge badge-purple">${c.route}</span></td>
-                                    <td><span class="badge badge-blue">${c.pkResult.params.Cmax}</span></td>
+                                    <td><strong>${c.name}</strong></td>
+                                    <td><span class="badge ${c.route === 'PO' ? 'badge-blue' : 'badge-purple'}">${c.route}</span></td>
+                                    <td>${c.pkResult.params.Cmax}</td>
                                     <td>${c.pkResult.params.Tmax}</td>
-                                    <td><span class="badge badge-green">${c.pkResult.params.AUC}</span></td>
+                                    <td>${c.pkResult.params.AUC}</td>
                                     <td>${c.pkResult.params.t_half}</td>
-                                    <td><span class="badge badge-purple">${c.pkResult.params.F}</span></td>
-                                    <td>${c.pkResult.params.Fa}</td>
-                                    <td>${c.pkResult.params.Fg}</td>
-                                    <td><span class="badge ${parseFloat(c.pkResult.params.Fh) < 30 ? 'badge-red' : 'badge-green'}">${c.pkResult.params.Fh}</span></td>
+                                    <td>${c.pkResult.params.F}</td>
                                     <td>${c.pkResult.params.Vd}</td>
                                     <td>${c.pkResult.params.CL}</td>
+                                    <td>${c.pkResult.params.fu}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -882,14 +709,17 @@
 
                 ${calc.length > 1 ? `
                 <div class="section">
-                    <h2>🔬 상대 비교 분석 (기준: ${calc[0].name})</h2>
+                    <h2>🔄 물질 간 비교 분석</h2>
+                    <p style="font-size: 12px; color: #6b7280; margin-bottom: 12px;">
+                        첫 번째 물질을 기준(100%)으로 상대적 노출량을 비교합니다
+                    </p>
                     <table class="comparison-table">
                         <thead>
                             <tr>
-                                <th>물질명</th>
-                                <th>C<sub>max</sub> 비율</th>
-                                <th>AUC 비율</th>
-                                <th>BA (F) 비율</th>
+                                <th>물질</th>
+                                <th>상대 Cmax</th>
+                                <th>상대 AUC</th>
+                                <th>상대 F</th>
                                 <th>해석</th>
                             </tr>
                         </thead>
@@ -926,20 +756,19 @@
 
                 <div class="alert alert-warning">
                     <strong>⚠️ 모델 적용 범위 및 한계</strong><br>
-                    • <strong>적용 가능 범위:</strong> 일반적인 경구 약물 (LogP: -2~6, fu: 0.001~1.0, MW: 150~800)<br>
+                    • <strong>적용 가능 범위:</strong> 일반적인 경구 약물 (LogP: -2~6, MW: 150-800)<br>
                     • <strong>정확도 높은 경우:</strong> BCS Class I, II, III 약물<br>
                     • <strong>예측 어려운 경우:</strong> 극지질성 (LogP > 6), 초장기 반감기 (>100h), 특수 트랜스포터 의존성<br>
                     • 실제 PK는 장내대사, 담즙배설, 음식효과, 약물상호작용 등의 영향을 받습니다<br>
-                    • <strong>더 정확한 예측을 위해 실제 PK 데이터 1-2개로 모델 보정을 권장합니다</strong>
+                    • <strong>더 정확한 예측을 위해 실제 PK 데이터로 모델 보정을 권장합니다</strong>
                 </div>
 
                 <div class="info-box">
                     <strong>📌 예측 정확도 향상 팁</strong><br>
-                    ✓ pKa 값 입력 시 pH별 용해도 변화가 자동 계산됩니다<br>
-                    ✓ Salt MW 입력 시 Free base 기준으로 용량이 보정됩니다<br>
-                    ✓ 입자크기 입력 시 dissolution rate가 Noyes-Whitney 식으로 계산됩니다<br>
-                    ✓ 간 CL 입력 시 초회통과효과가 더 정확해집니다<br>
-                    ✓ 유사 화합물의 실제 PK 데이터가 있다면 파라미터를 조정하여 보정하세요
+                    ✓ Caco-2 또는 BCS Class 입력으로 투과성 반영<br>
+                    ✓ 간 클리어런스 입력 시 초회통과효과가 정확해집니다<br>
+                    ✓ 단백결합률 입력 시 분포용적(Vd) 계산이 개선됩니다<br>
+                    ✓ 입자크기 입력 시 dissolution rate가 Noyes-Whitney 식으로 계산됩니다
                 </div>
 
                 <div class="flex-between" style="margin-top: 20px;">
@@ -1033,6 +862,8 @@
             if (currentStep === 3) setTimeout(renderChart, 100);
         }
 
+        // 초기화 시 첫 번째 물질 자동 추가
+        addCompound();
         render();
     </script>
 </body>
