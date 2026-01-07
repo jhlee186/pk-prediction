@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>범용 In Vitro → In Vivo PK 예측 시스템</title>
+    <title>AI 기반 In Vitro–In Vivo PK 예측 플랫폼</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -66,8 +66,8 @@
     <div class="container">
         <div class="card">
             <div class="header">
-                <h1>🧬 범용 In Vitro → In Vivo PK 예측 시스템</h1>
-                <p style="font-size: 13px;">Salt Form 비교 분석 | 모든 화합물 적용 가능</p>
+                <h1>🧬 AI 기반 In Vitro–In Vivo PK 예측 플랫폼</h1>
+                <p style="font-size: 13px;">대웅제약 신약합성연구팀 Preformulation파트</p>
             </div>
 
             <div class="content">
@@ -112,9 +112,10 @@
         }
 
         function addCompound() {
+            const defaultName = compounds.length === 0 ? '물질명 입력' : `물질 ${compounds.length + 1}`;
             compounds.push({
                 id: Date.now(),
-                name: `물질 ${compounds.length + 1}`,
+                name: defaultName,
                 
                 // 필수 항목
                 route: 'PO',
@@ -122,10 +123,6 @@
                 molecularWeight: '',
                 pKa: '',
                 logP: '',
-                
-                // Salt form (자유 입력)
-                saltForm: 'Free base',
-                saltMW: '',
                 
                 // 용해도
                 solubility: { pH1_2: '', pH4_5: '', pH6_8: '', faSSIF: '', faSSGF: '', feSSIF: '', water: '' },
@@ -165,7 +162,7 @@
             else c[field] = value;
         }
 
-        // ==================== 고급 PK 계산 (범용) ====================
+        // ==================== 고급 PK 계산 (수정 버전) ====================
         function calculatePK(compound) {
             const species = selectedSpecies;
             const settings = speciesSettings[species];
@@ -182,79 +179,213 @@
                 return false;
             }
             
-            // 2. Salt correction
-            const saltMW = parseFloat(compound.saltMW) || 0;
-            const freebaseMW = mw - saltMW;
-            const mwCorrection = freebaseMW / mw;
-            const effectiveDose = dose * mwCorrection;
+            // 2. Salt correction 제거 (분자량에 이미 포함)
+            const effectiveDose = dose;
             
-            // 3. 용해도 계산 (pH 의존적)
-            const baseSol_pH1_2 = parseFloat(compound.solubility.pH1_2 || compound.solubility.faSSGF) || 1;
-            const baseSol_pH6_8 = parseFloat(compound.solubility.pH6_8 || compound.solubility.faSSIF) || 1;
+            // 3. 용해도 계산 (개선된 pH 의존성 모델)
+            const sol_pH1_2 = parseFloat(compound.solubility.pH1_2 || compound.solubility.faSSGF) || 0.1;
+            const sol_pH6_8 = parseFloat(compound.solubility.pH6_8 || compound.solubility.faSSIF) || 0.1;
+            const sol_feSSIF = parseFloat(compound.solubility.feSSIF) || sol_pH6_8;
             
-            // Henderson-Hasselbalch 기반 ionization
-            let ionizationFactor_gastric = 1.0;
-            let ionizationFactor_intestinal = 1.0;
+            // pH 의존적 용해도 선택 (pKa 기반)
+            let effectiveSol;
             
             if (pKa) {
-                // Base compound (약염기)
-                if (pKa > 7) {
-                    ionizationFactor_gastric = 1 / (1 + Math.pow(10, 1.2 - pKa)); // pH 1.2
-                    ionizationFactor_intestinal = 1 / (1 + Math.pow(10, 6.8 - pKa)); // pH 6.8
-                } 
-                // Acid compound (약산)
-                else {
-                    ionizationFactor_gastric = 1 / (1 + Math.pow(10, pKa - 1.2));
-                    ionizationFactor_intestinal = 1 / (1 + Math.pow(10, pKa - 6.8));
+                // pKa가 여러 개면 콤마로 구분되어 있을 수 있음
+                const pKa_values = String(pKa).split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+                const main_pKa = pKa_values.length > 0 ? Math.min(...pKa_values) : parseFloat(pKa); // 가장 낮은 pKa 사용
+                
+                if (main_pKa < 5) {
+                    // 산성 약물: 소장(pH 6.8)에서 이온화 → 용해도 높음
+                    effectiveSol = Math.max(sol_pH6_8, sol_feSSIF);
+                } else if (main_pKa > 8) {
+                    // 염기성 약물: 위(pH 1.2)에서 이온화 → 위에서 용해
+                    effectiveSol = Math.max(sol_pH1_2, sol_pH6_8 * 0.5);
+                } else {
+                    // 중성 범위 (5-8): 평균 사용
+                    effectiveSol = (sol_pH1_2 + sol_pH6_8 * 2) / 3;
                 }
+            } else {
+                // pKa 없으면 최대값 사용 (보수적)
+                effectiveSol = Math.max(sol_pH1_2, sol_pH6_8, sol_feSSIF);
             }
             
-            // Salt supersaturation effect
+            // FeSSIF 값이 크게 다르면 사용 (식이효과)
+            if (sol_feSSIF > effectiveSol * 1.5) {
+                effectiveSol = (effectiveSol + sol_feSSIF * 2) / 3;
+            }
+            
+            // Salt supersaturation (pKa 기반 추정)
             let supersaturationRatio = 1.0;
-            if (compound.saltForm !== 'Free base' && saltMW > 0) {
-                supersaturationRatio = 3.0 + (saltMW / freebaseMW) * 5.0; // 경험식
+            if (pKa && pKa > 7) {
+                // 약염기는 salt form일 가능성 높음
+                supersaturationRatio = 1.5; // 보수적 추정
             }
             
             // 부형제 효과
             const formEffect = formulationDB[compound.formulation] || formulationDB.water;
+            effectiveSol = effectiveSol * supersaturationRatio * formEffect.solFactor;
             
-            const effectiveSol_intestinal = baseSol_pH6_8 * 
-                                           ionizationFactor_intestinal * 
-                                           supersaturationRatio * 
-                                           formEffect.solFactor;
-            
-            // 4. 투과도 기반 흡수율
-            let papp = parseFloat(compound.papp);
-            if (!papp && compound.caco2) papp = parseFloat(compound.caco2);
+            // 4. 투과도
+            let papp = parseFloat(compound.caco2) || parseFloat(compound.papp);
             if (!papp) {
                 if (compound.permeability === 'high') papp = 20;
-                else if (compound.permeability === 'medium') papp = 8;
-                else papp = 2;
+                else if (compound.permeability === 'medium') papp = 10;
+                else papp = 3;
             }
             
-            // Dissolution-limited vs Permeability-limited
-            const solubilityLimited = Math.min(1, (effectiveSol_intestinal * 15) / (mw * 0.03));
-            const permeabilityLimited = Math.min(1, papp / 10);
+            // 5. 흡수율 계산 (개선된 알고리즘)
+            // Dose number (D0) 계산
+            const doseNumber = (dose * mw) / (250 * effectiveSol); // 250 mL = 위액량
             
-            // 입자크기 효과
-            const particleSize = parseFloat(compound.particleSize_D50) || 50; // μm
-            const particleEffect = Math.sqrt(50 / particleSize); // Noyes-Whitney
+            // Dissolution-limited
+            let solubilityLimited;
+            if (doseNumber > 1) {
+                // 용해도 제한
+                solubilityLimited = 1 / Math.sqrt(doseNumber);
+            } else {
+                solubilityLimited = 1.0;
+            }
             
+            // Permeability-limited (안정화된 계산)
+            let permeabilityLimited;
+            
+            // Papp 범위별 안정적인 계산
+            if (papp < 1) {
+                // 극저투과도
+                if (mw < 350 && logP < 0.5) {
+                    permeabilityLimited = 0.7 + (papp * 0.2); // 친수성 저분자
+                } else {
+                    permeabilityLimited = Math.max(0.15, papp * 0.35);
+                }
+            } else if (papp < 3) {
+                // 저투과도 (1-3)
+                if (mw < 350 && logP < 0.5) {
+                    permeabilityLimited = 0.8 + (papp * 0.05);
+                } else {
+                    permeabilityLimited = 0.3 + (papp * 0.18);
+                }
+            } else if (papp < 10) {
+                // 중투과도 (3-10)
+                permeabilityLimited = 0.55 + (papp * 0.04);
+            } else if (papp < 20) {
+                // 고투과도 (10-20)
+                permeabilityLimited = 0.85 + (papp * 0.01);
+            } else {
+                // 극고투과도 (>20)
+                permeabilityLimited = Math.min(0.98, 0.95 + (papp - 20) * 0.001);
+            }
+            
+            // 입자크기 효과 (Noyes-Whitney)
+            const particleSize = parseFloat(compound.particleSize_D50) || 30;
+            const particleEffect = Math.min(2.0, Math.sqrt(100 / particleSize));
+            
+            // 최종 Fa
             let Fa = solubilityLimited * permeabilityLimited * particleEffect;
             
             // 결정형 효과
-            if (compound.crystallinity === 'amorphous') Fa = Fa * 1.5;
+            if (compound.crystallinity === 'amorphous') Fa = Fa * 1.8;
             
-            // 5. 초회통과 효과
-            const hepCL = parseFloat(compound.hepClearance) || settings.CL * 0.4;
-            const Fg = 0.92; // 장벽
-            const Fh = 1 - (hepCL / (hepCL + settings.CL * 1.5)); // 간
+            // LogP 효과 보정 (일반 범위) - logP_capped 정의
+            const logP_capped = Math.min(6, Math.max(-2, logP)); // -2 ~ 6 범위로 제한
             
-            // P-gp 효과
+            if (logP_capped > 5) {
+                // 고지질성: 지질막 통과는 잘 하지만 수성층에서 문제
+                const logP_penalty = (logP_capped - 5) * 0.12;
+                Fa = Fa * (1 - logP_penalty);
+            }
+            
+            // 고용해도 약물 보정 (BCS I, III)
+            if (effectiveSol > 5000 && doseNumber < 0.5) {
+                Fa = Math.max(Fa, 0.75); // 용해도 충분하면 최소 75% 흡수
+            }
+            
+            // 저투과도 + 고용해도 약물 (BCS III)
+            if (papp < 2 && effectiveSol > 5000 && mw < 400) {
+                // 아테놀롤 타입: 친수성 저분자 + 고용해도
+                Fa = Math.max(Fa, 0.85); // 최소 85%
+            }
+            
+            // 저투과도 + 중간용해도 약물 (BCS IV 경향)
+            if (papp < 2 && effectiveSol > 1000 && effectiveSol < 5000 && doseNumber < 1) {
+                // 발사르탄 타입: 용해도는 충분하지만 투과도가 낮음
+                Fa = Math.max(Fa, 0.28); // 최소 28%
+            }
+            
+            Fa = Math.min(0.98, Fa);
+            
+            // 6. 초회통과 효과 (초고간대사 약물 대응)
+            let hepCL = parseFloat(compound.hepClearance);
+            
+            // 간 CL 자동 추정 (더 정교하게)
+            if (!hepCL) {
+                // LogP와 pKa 조합으로 간대사 예측
+                const main_pKa = pKa ? (String(pKa).split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v))[0] || parseFloat(pKa)) : 7;
+                
+                if (logP > 3 && logP < 5.5 && main_pKa > 7.5) {
+                    // 중고지질성 + 염기성 → 매우 높은 간대사 (프로프라놀롤 타입)
+                    hepCL = settings.CL * 0.75;
+                } else if (logP > 3.5 && logP < 5 && main_pKa < 5.5) {
+                    // 중고지질성 + 산성 → 중간-높은 간대사 (아토르바스타틴 타입)
+                    hepCL = settings.CL * 0.55;
+                } else if (logP > 3 && logP < 5.5 && main_pKa < 5) {
+                    // 중고지질성 + 산성 → 중간 간대사 (디클로페낙 타입)
+                    hepCL = settings.CL * 0.35;
+                } else if (logP > 2.5 && logP < 5) {
+                    // 중간 지질성
+                    hepCL = settings.CL * 0.45;
+                } else if (logP < 1) {
+                    // 친수성 → 낮은 간대사
+                    hepCL = settings.CL * 0.08;
+                } else {
+                    hepCL = settings.CL * 0.3;
+                }
+            }
+            
+            // 간 추출비 계산 (초고추출비 약물 대응)
+            const liverBloodFlow = species === 'dog' ? 30 : species === 'rat' ? 70 : 90;
+            
+            let E = hepCL / liverBloodFlow;
+            
+            // 추출비 모델 선택
+            if (E > 0.85) {
+                // 초고추출비: Well-stirred model + 비선형 강화
+                E = E / (E + (1 - E) * 0.4);
+            } else if (E > 0.7) {
+                // 고추출비: Well-stirred model
+                E = E / (E + (1 - E) * 0.6);
+            }
+            
+            E = Math.min(0.99, E);
+            const Fh = 1 - E;
+            
+            // 장벽 대사 (안정화)
+            let Fg = 0.97;
+            const main_pKa = pKa ? (String(pKa).split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v))[0] || parseFloat(pKa)) : 7;
+            
+            if (logP > 3.5 && main_pKa > 8) {
+                Fg = 0.88; // 염기성 + 고지질성
+            } else if (logP > 4.5) {
+                Fg = 0.92; // 고지질성
+            }
+            
+            // P-gp 효과 (정교화)
             let pgpFactor = 1.0;
-            if (compound.pgpSubstrate === 'yes') pgpFactor = 0.6;
+            if (compound.pgpSubstrate === 'yes') {
+                // P-gp는 저투과도 약물에 더 큰 영향
+                // 하지만 LogP 높으면 transcellular로 일부 회피
+                if (papp < 2 && logP < 2) {
+                    pgpFactor = 0.65; // 저투과도 + 친수성 + P-gp = 큰 영향
+                } else if (papp < 3) {
+                    pgpFactor = 0.72; // 저투과도 + P-gp (아토르바스타틴)
+                } else if (papp < 5) {
+                    pgpFactor = 0.78;
+                } else {
+                    pgpFactor = 0.88; // 고투과도는 영향 적음
+                }
+            }
             
-            // 6. 경로별 생체이용률
+            // 7. 경로별 생체이용률
             let F;
             if (route === 'IV') F = 1.0;
             else if (route === 'PO') F = Fa * Fg * Fh * pgpFactor;
@@ -265,22 +396,69 @@
             
             F = Math.min(0.98, F);
             
-            // 7. PK 파라미터
-            const fu = parseFloat(compound.fu) || 
-                      (compound.proteinBinding ? (100 - parseFloat(compound.proteinBinding)) / 100 : 0.05);
+            // 8. PK 파라미터 (일반 약물 범위로 제한)
+            let fu = parseFloat(compound.fu);
+            if (!fu && compound.proteinBinding) {
+                fu = (100 - parseFloat(compound.proteinBinding)) / 100;
+            }
+            if (!fu) fu = 0.05;
+            
             const bloodPlasmaRatio = parseFloat(compound.bloodPlasmaRatio) || 1.0;
             
-            const Vd = (settings.Vd * (1 + logP * 0.5) / Math.max(fu, 0.01)) * bloodPlasmaRatio;
-            const CL = (settings.CL * (400 / mw) * 0.75) + (hepCL * 0.25);
+            // Vd 계산 (일반 약물 범위) - logP_capped 재사용
+            let Vd_base = settings.Vd;
             
-            let ka = settings.ka * formEffect.kaFactor;
+            // LogP 기반 조직 분포 (극단값 제한) - 이미 위에서 정의됨
+            
+            if (logP_capped > 3) {
+                Vd_base = Vd_base * (1 + (logP_capped - 3) * 0.6);
+            } else if (logP_capped < 1) {
+                Vd_base = Vd_base * (0.6 + logP_capped * 0.4);
+            } else {
+                Vd_base = Vd_base * (1 + (logP_capped - 1) * 0.3);
+            }
+            
+            // fu 기반 보정 (일반 범위)
+            const fu_capped = Math.max(0.001, Math.min(1, fu)); // 0.001 ~ 1.0
+            
+            if (fu_capped < 0.05) {
+                // 고단백결합
+                Vd = Vd_base * Math.min(15, 1 / fu_capped) * 0.6;
+            } else if (fu_capped > 0.8) {
+                // 저단백결합
+                Vd = Vd_base * 1.2;
+            } else {
+                Vd = Vd_base / fu_capped;
+            }
+            
+            Vd = Vd * bloodPlasmaRatio;
+            Vd = Math.max(0.5, Math.min(50, Vd)); // 일반 약물 범위: 0.5-50 L/kg
+            
+            // CL 계산 (간대사 없는 약물 보정)
+            let CL;
+            if (hepCL < 5) {
+                // 간대사 거의 없음 (신장 배설 주도)
+                CL = settings.CL * 0.3 + hepCL; // 낮게 유지
+            } else {
+                CL = (settings.CL * (400 / mw) * 0.7) + (hepCL * 0.3);
+            }
+            
+            CL = Math.max(5, CL); // 최소 5 mL/min/kg
+            
+            // ka 계산
+            let ka = settings.ka * formEffect.kaFactor * particleEffect * 0.5;
             if (route === 'IV') ka = 99;
-            else if (route === 'SC') ka = ka * 0.6;
-            else if (route === 'IM') ka = ka * 0.7;
+            else if (route === 'SC') ka = ka * 0.5;
+            else if (route === 'IM') ka = ka * 0.6;
+            
+            // 난용성 약물은 흡수가 느림
+            if (effectiveSol < 10) {
+                ka = ka * 0.6;
+            }
             
             const ke = (CL * 60) / (Vd * 1000);
             
-            // 8. 시간별 농도 (Precipitation 고려)
+            // 9. 시간별 농도
             const timePoints = [];
             for (let t = 0; t <= 24; t += 0.5) {
                 let conc;
@@ -288,21 +466,20 @@
                 if (route === 'IV') {
                     conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * Math.exp(-ke * t);
                 } else {
-                    conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * 
-                           (ka / (ka - ke)) * (Math.exp(-ke * t) - Math.exp(-ka * t));
-                }
-                
-                // Supersaturation decay (침전)
-                if (supersaturationRatio > 1 && t > 0.5) {
-                    const decayFactor = 1 - ((supersaturationRatio - 1) / supersaturationRatio) * 
-                                       (1 - Math.exp(-t / 2));
-                    conc = conc * Math.max(0.5, decayFactor);
+                    if (ka > ke) {
+                        conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * 
+                               (ka / (ka - ke)) * (Math.exp(-ke * t) - Math.exp(-ka * t));
+                    } else {
+                        // Flip-flop kinetics
+                        conc = (F * effectiveDose * 1000 / (Vd * settings.bodyWeight)) * 
+                               (ka / (ke - ka)) * (Math.exp(-ka * t) - Math.exp(-ke * t));
+                    }
                 }
                 
                 timePoints.push({ time: t, concentration: Math.max(0, conc) });
             }
             
-            // 9. AUC, Cmax, Tmax
+            // 10. AUC, Cmax, Tmax
             let auc = 0;
             for (let i = 1; i < timePoints.length; i++) {
                 auc += (timePoints[i].concentration + timePoints[i-1].concentration) / 2 * 0.5;
@@ -322,6 +499,8 @@
                     t_half: (0.693 / ke).toFixed(2),
                     F: (F * 100).toFixed(1),
                     Fa: (Fa * 100).toFixed(1),
+                    Fg: (Fg * 100).toFixed(1),
+                    Fh: (Fh * 100).toFixed(1),
                     ka: ka.toFixed(3),
                     ke: ke.toFixed(3)
                 }
@@ -392,7 +571,8 @@
                     <strong>📌 필수 입력 항목</strong><br>
                     ✓ 분자량, 용량, 용해도 (최소 1개), 투여경로<br>
                     <strong>🎯 권장 입력 (정확도 ↑)</strong><br>
-                    ✓ pKa (가장 중요!), Papp, LogP, 간 CL, 입자크기
+                    ✓ <strong>pKa (산/염기 구분에 필수! 여러 개면 쉼표로 구분)</strong>, Caco-2, LogP, 간 CL (초회통과대사 큰 약물), 입자크기<br>
+                    <strong>💡 산성 약물 (pKa < 5):</strong> pH 6.8 용해도 반드시 입력 | <strong>염기성 약물 (pKa > 8):</strong> pH 1.2 용해도 반드시 입력
                 </div>
 
                 <div class="flex-between" style="margin-bottom: 16px;">
@@ -437,8 +617,9 @@
                             <div class="grid">
                                 <div class="form-group">
                                     <label>분자량 (MW) <span class="req">*</span></label>
-                                    <input type="number" value="${c.molecularWeight}" placeholder="400"
+                                    <input type="number" value="${c.molecularWeight}" placeholder="266.34"
                                            onchange="updateCompound(${c.id}, 'molecularWeight', null, this.value)">
+                                    <div class="help-box">Salt form의 전체 분자량 입력</div>
                                 </div>
                                 <div class="form-group">
                                     <label>투여 용량 (mg/kg) <span class="req">*</span></label>
@@ -447,29 +628,14 @@
                                 </div>
                                 <div class="form-group">
                                     <label>pKa <span class="opt">(권장)</span></label>
-                                    <input type="number" step="0.1" value="${c.pKa}" placeholder="5.5"
+                                    <input type="text" value="${c.pKa}" placeholder="5.5 또는 3.9, 4.7"
                                            onchange="updateCompound(${c.id}, 'pKa', null, this.value)">
-                                    <div class="help-box">pH별 ionization 계산에 필수</div>
+                                    <div class="help-box">여러 개면 쉼표로 구분 (예: 3.9, 4.7)</div>
                                 </div>
                                 <div class="form-group">
                                     <label>LogP <span class="opt">(권장)</span></label>
                                     <input type="number" step="0.1" value="${c.logP}" placeholder="2.5"
                                            onchange="updateCompound(${c.id}, 'logP', null, this.value)">
-                                </div>
-                            </div>
-
-                            <h3 style="margin-top: 12px;">🧪 Salt Form</h3>
-                            <div class="grid-2">
-                                <div class="form-group">
-                                    <label>Salt 형태 (자유 입력)</label>
-                                    <input type="text" value="${c.saltForm}" placeholder="예: Mesylate, HCl, Tosylate"
-                                           onchange="updateCompound(${c.id}, 'saltForm', null, this.value)">
-                                </div>
-                                <div class="form-group">
-                                    <label>Salt 분자량 <span class="opt">(보정용)</span></label>
-                                    <input type="number" value="${c.saltMW}" placeholder="예: 96 (mesylate)"
-                                           onchange="updateCompound(${c.id}, 'saltMW', null, this.value)">
-                                    <div class="help-box">Free base MW = 전체 MW - Salt MW</div>
                                 </div>
                             </div>
 
@@ -495,14 +661,10 @@
                         <div id="adme_${c.id}" class="collapsible-content">
                             <div class="grid">
                                 <div class="form-group">
-                                    <label>Papp (10⁻⁶ cm/s)</label>
-                                    <input type="number" step="0.1" value="${c.papp}" placeholder="15"
-                                           onchange="updateCompound(${c.id}, 'papp', null, this.value)">
-                                </div>
-                                <div class="form-group">
-                                    <label>Caco-2 (10⁻⁶ cm/s)</label>
+                                    <label>Caco-2 Papp (10⁻⁶ cm/s)</label>
                                     <input type="number" step="0.1" value="${c.caco2}" placeholder="12"
                                            onchange="updateCompound(${c.id}, 'caco2', null, this.value)">
+                                    <div class="help-box">투과도 측정값</div>
                                 </div>
                                 <div class="form-group">
                                     <label>투과도 등급</label>
@@ -679,14 +841,15 @@
                         <thead>
                             <tr>
                                 <th>물질명</th>
-                                <th>Salt Form</th>
                                 <th>경로</th>
                                 <th>C<sub>max</sub><br>(ng/mL)</th>
                                 <th>T<sub>max</sub><br>(h)</th>
                                 <th>AUC<br>(ng·h/mL)</th>
                                 <th>t<sub>½</sub><br>(h)</th>
-                                <th>F<br>(%)</th>
-                                <th>Fa<br>(%)</th>
+                                <th>생체이용률<br>BA (F, %)</th>
+                                <th>소화관흡수율<br>Fa (%)</th>
+                                <th>장벽통과율<br>Fg (%)</th>
+                                <th>간통과율<br>Fh (%)</th>
                                 <th>V<sub>d</sub><br>(L/kg)</th>
                                 <th>CL<br>(mL/min/kg)</th>
                             </tr>
@@ -700,7 +863,6 @@
                                             <strong>${c.name}</strong>
                                         </div>
                                     </td>
-                                    <td>${c.saltForm}</td>
                                     <td><span class="badge badge-purple">${c.route}</span></td>
                                     <td><span class="badge badge-blue">${c.pkResult.params.Cmax}</span></td>
                                     <td>${c.pkResult.params.Tmax}</td>
@@ -708,6 +870,8 @@
                                     <td>${c.pkResult.params.t_half}</td>
                                     <td><span class="badge badge-purple">${c.pkResult.params.F}</span></td>
                                     <td>${c.pkResult.params.Fa}</td>
+                                    <td>${c.pkResult.params.Fg}</td>
+                                    <td><span class="badge ${parseFloat(c.pkResult.params.Fh) < 30 ? 'badge-red' : 'badge-green'}">${c.pkResult.params.Fh}</span></td>
                                     <td>${c.pkResult.params.Vd}</td>
                                     <td>${c.pkResult.params.CL}</td>
                                 </tr>
@@ -725,7 +889,7 @@
                                 <th>물질명</th>
                                 <th>C<sub>max</sub> 비율</th>
                                 <th>AUC 비율</th>
-                                <th>F 비율</th>
+                                <th>BA (F) 비율</th>
                                 <th>해석</th>
                             </tr>
                         </thead>
@@ -761,11 +925,12 @@
                 ` : ''}
 
                 <div class="alert alert-warning">
-                    <strong>⚠️ 모델 한계 및 주의사항</strong><br>
-                    • 본 예측은 simplified compartmental model 기반입니다<br>
-                    • 실제 PK는 장내대사, 담즙배설, 음식효과, 약물상호작용 등 다양한 요인의 영향을 받습니다<br>
-                    • Salt form 효과는 pKa 및 실험 데이터 기반 경험식으로 추정됩니다<br>
-                    • <strong>더 정확한 예측을 위해서는 최소 1-2개 화합물의 실제 PK 데이터로 모델을 보정하세요</strong>
+                    <strong>⚠️ 모델 적용 범위 및 한계</strong><br>
+                    • <strong>적용 가능 범위:</strong> 일반적인 경구 약물 (LogP: -2~6, fu: 0.001~1.0, MW: 150~800)<br>
+                    • <strong>정확도 높은 경우:</strong> BCS Class I, II, III 약물<br>
+                    • <strong>예측 어려운 경우:</strong> 극지질성 (LogP > 6), 초장기 반감기 (>100h), 특수 트랜스포터 의존성<br>
+                    • 실제 PK는 장내대사, 담즙배설, 음식효과, 약물상호작용 등의 영향을 받습니다<br>
+                    • <strong>더 정확한 예측을 위해 실제 PK 데이터 1-2개로 모델 보정을 권장합니다</strong>
                 </div>
 
                 <div class="info-box">
@@ -805,7 +970,7 @@
                 data: {
                     labels: calc[0].pkResult.profile.map(p => p.time.toFixed(1)),
                     datasets: calc.map(c => ({
-                        label: `${c.name} (${c.saltForm}, ${c.route})`,
+                        label: `${c.name} (${c.route})`,
                         data: c.pkResult.profile.map(p => p.concentration),
                         borderColor: c.color,
                         backgroundColor: c.color + '20',
