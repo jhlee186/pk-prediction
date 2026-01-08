@@ -165,7 +165,7 @@
         const tooltips = {
             route: '투여경로: 약물이 체내에 투입되는 방식<br>• PO (경구): 위장관을 통한 흡수<br>• IV (정맥): 혈관에 직접 투여',
             dose: '투여량: 동물에게 투여할 약물의 양<br>단위: mg/kg (체중 kg당 mg)<br>일반적 범위: 1-100 mg/kg',
-            molecularWeight: '분자량: 약물 분자의 질량<br>단위: g/mol<br>일반적 범위: 150-800 g/mol<br>예: Aspirin=180, Ibuprofen=206',
+            molecularWeight: '분자량: 약물 분자의 질량<br>단위: g/mol<br>일반적 범위: 150-800 g/mol<br><strong>⚠️ 중요: 염 형태는 Free base MW 입력</strong><br>예: Ketoconazole Besylate<br>→ Salt MW 531.43 ❌<br>→ Free base MW 408.88 ✅',
             pKa: 'pKa: 산해리상수 (산성도 지표)<br>• pKa < 5: 산성 약물<br>• pKa 5-9: 중성<br>• pKa > 9: 염기성 약물<br>pH별 용해도 계산에 사용<br><strong>다중 pKa는 쉼표로 구분</strong> (예: 6.51, 2.94)',
             logP: 'LogP: 옥탄올/물 분배계수 (친유성 지표)<br>• LogP < 0: 친수성<br>• LogP 0-3: 적절한 친유성<br>• LogP > 5: 매우 친유성<br>투과성 예측에 사용됩니다',
             solubility: '용해도: pH별 약물 용해도<br>단위: μg/mL<br>용해도가 높을수록 흡수가 빠릅니다<br>BCS 분류 및 생체이용률 예측에 필수',
@@ -312,6 +312,9 @@
                                         <label>분자량 (g/mol) <span class="req">*</span> ${createTooltip('molecularWeight')}</label>
                                         <input type="number" step="0.01" value="${c.molecularWeight}" 
                                                onchange="updateCompound(${c.id}, 'molecularWeight', this.value)">
+                                        <div style="font-size: 11px; color: #d97706; margin-top: 4px; font-weight: 500;">
+                                            ⚠️ 염 형태(HCl, Besylate 등)는 Free base MW 입력
+                                        </div>
                                     </div>
                                     <div class="form-group">
                                         <label>pKa <span class="opt">(선택)</span> ${createTooltip('pKa')}</label>
