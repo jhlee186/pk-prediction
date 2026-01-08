@@ -166,17 +166,26 @@
             route: '투여경로: 약물이 체내에 투입되는 방식<br>• PO (경구): 위장관을 통한 흡수<br>• IV (정맥): 혈관에 직접 투여',
             dose: '투여량: 동물에게 투여할 약물의 양<br>단위: mg/kg (체중 kg당 mg)<br>일반적 범위: 1-100 mg/kg',
             molecularWeight: '분자량: 약물 분자의 질량<br>단위: g/mol<br>일반적 범위: 150-800 g/mol<br>예: Aspirin=180, Ibuprofen=206',
-            pKa: 'pKa: 산해리상수 (산성도 지표)<br>• pKa < 5: 산성 약물<br>• pKa 5-9: 중성<br>• pKa > 9: 염기성 약물<br>pH별 용해도 계산에 사용됩니다',
+            pKa: 'pKa: 산해리상수 (산성도 지표)<br>• pKa < 5: 산성 약물<br>• pKa 5-9: 중성<br>• pKa > 9: 염기성 약물<br>pH별 용해도 계산에 사용<br><strong>다중 pKa는 쉼표로 구분</strong> (예: 6.51, 2.94)',
             logP: 'LogP: 옥탄올/물 분배계수 (친유성 지표)<br>• LogP < 0: 친수성<br>• LogP 0-3: 적절한 친유성<br>• LogP > 5: 매우 친유성<br>투과성 예측에 사용됩니다',
             solubility: '용해도: pH별 약물 용해도<br>단위: μg/mL<br>용해도가 높을수록 흡수가 빠릅니다<br>BCS 분류 및 생체이용률 예측에 필수',
-            caco2: 'Caco-2 투과도<br>단위: 10⁻⁶ cm/s<br>• <1: 낮은 투과성 (BCS III, IV)<br>• 1-10: 중간 투과성<br>• >10: 높은 투과성 (BCS I, II)<br>장 상피세포 투과 능력 측정',
-            bcsClass: 'BCS 분류 (Biopharmaceutics Classification System)<br>용해도와 투과성에 따른 분류:<br>• Class I: 고용해도/고투과성 (F>80%)<br>• Class II: 저용해도/고투과성 (F 가변적)<br>• Class III: 고용해도/저투과성 (F<50%)<br>• Class IV: 저용해도/저투과성 (F<30%)',
+            caco2: 'Caco-2 투과도<br>단위: 10⁻⁶ cm/s<br>• <1: 낮은 투과성<br>• 1-10: 중간 투과성<br>• >10: 높은 투과성<br>장 상피세포 투과 능력 측정<br><strong>시스템이 자동으로 BCS Class 판단</strong>',
             proteinBinding: '혈장단백질 결합률<br>단위: % (0-100)<br>• <80%: 낮은 결합<br>• 80-95%: 중간 결합<br>• >95%: 높은 결합<br>분포용적(Vd) 계산에 영향',
             hepClearance: '간 클리어런스<br>단위: mL/min/kg<br>간에서의 약물 대사 속도<br>초회통과효과 및 전신 제거율 계산<br><strong>PK 예측의 가장 중요한 파라미터</strong>',
+            vdInput: 'Vd 직접 입력 (고급 옵션)<br>단위: L/kg<br>문헌값이 있을 때 직접 입력 가능<br>비워두면 LogD와 단백결합으로 자동 계산됩니다',
             logD: 'LogD (pH 7.4): 생리적 pH에서의 분배계수<br>LogP와 달리 이온화 상태를 고려<br>• LogD < 0: 친수성<br>• LogD 1-3: 최적 친유성<br>• LogD > 5: 과도한 친유성<br>막 투과성 및 Vd 예측에 중요',
             formulation: '부형제 효과:<br>• 정제수: 용해도 1배 (기준)<br>• 0.5% MC: 1.3배 증가<br>• Tween 80: 3-4배 증가 (계면활성제)<br>• PEG 400: 4.5배 증가 (가용화제)<br>• Solutol 10%: 5배 증가<br>• Captisol 10%: 6배 증가 (cyclodextrin)',
             particleSize: '입자 크기 (Particle Size)<br>단위: μm<br>• D50: 중앙값 (50% 입자가 이보다 작음)<br>• D90: 90% 입자가 이보다 작음)<br>작을수록 용해 속도가 빠릅니다<br>Noyes-Whitney 식으로 계산됩니다',
-            doseVolume: '투여 부피<br>단위: mL/kg<br>일반적 범위: 5-20 mL/kg<br>부피가 클수록 위장 체류시간 증가<br>용해도 제한 약물의 흡수에 영향'
+            doseVolume: '투여 부피<br>단위: mL/kg<br>일반적 범위: 5-20 mL/kg<br>부피가 클수록 위장 체류시간 증가<br>용해도 제한 약물의 흡수에 영향',
+            compoundName: '물질명<br>비교하려는 약물의 이름',
+            cmax: 'Cmax: 최고 혈중 농도<br>약물 투여 후 혈중에서 도달하는 최대 농도<br>단위: ng/mL<br>약효 발현과 직접 관련',
+            tmax: 'Tmax: 최고 농도 도달 시간<br>Cmax에 도달하는 시간<br>단위: 시간(h)<br>흡수 속도의 지표',
+            auc: 'AUC: 농도-시간 곡선하 면적<br>약물의 총 노출량을 나타냄<br>단위: ng·h/mL<br>생체이용률 계산의 기준',
+            halflife: 't½: 반감기<br>혈중 농도가 절반으로 감소하는 시간<br>단위: 시간(h)<br>투여 간격 설정에 중요',
+            bioavailability: '생체이용률 (Bioavailability)<br>투여된 약물이 전신순환에 도달하는 비율<br>단위: %<br>경구 투여시 초회통과효과로 감소',
+            vd: 'Vd: 분포용적<br>약물이 체내에 분포하는 가상 부피<br>단위: L/kg<br>친유성 약물일수록 크고, 단백결합이 높으면 작음',
+            clearance: 'CL: 클리어런스<br>단위시간당 약물이 제거되는 혈액 부피<br>단위: mL/min/kg<br>간/신장 대사 및 배설 속도 반영',
+            freefraction: '유리분율 (Free Fraction)<br>혈장 단백질에 결합하지 않은 약물의 비율<br>단위: %<br>약효를 나타내는 실제 활성 약물의 양'
         };
 
         function createTooltip(key) {
@@ -210,9 +219,9 @@
                 
                 // ADME (간소화)
                 caco2: '',
-                bcsClass: '2',
                 proteinBinding: '',
                 hepClearance: '',
+                vdInput: '',
                 
                 // 제형
                 formulation: 'water',
@@ -306,8 +315,11 @@
                                     </div>
                                     <div class="form-group">
                                         <label>pKa <span class="opt">(선택)</span> ${createTooltip('pKa')}</label>
-                                        <input type="number" step="0.1" value="${c.pKa}" 
+                                        <input type="text" value="${c.pKa}" placeholder="예: 6.51, 2.94"
                                                onchange="updateCompound(${c.id}, 'pKa', this.value)">
+                                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+                                            여러 개일 경우 쉼표로 구분
+                                        </div>
                                     </div>
                                     <div class="form-group">
                                         <label>LogP <span class="req">*</span> ${createTooltip('logP')}</label>
@@ -366,22 +378,13 @@
                                 <div class="collapsible-content">
                                     <h3>🧪 ADME 파라미터</h3>
                                     <div class="help-box">
-                                        Caco-2 또는 BCS Class 입력으로 기본 예측 가능. 간 클리어런스 입력 시 정확도 크게 향상.
+                                        Caco-2와 용해도로 BCS Class를 자동 판단합니다. 간 클리어런스 입력 시 정확도가 크게 향상됩니다.
                                     </div>
                                     <div class="grid">
                                         <div class="form-group">
                                             <label>Caco-2 (10⁻⁶ cm/s) <span class="opt">(선택)</span> ${createTooltip('caco2')}</label>
                                             <input type="number" step="0.01" value="${c.caco2}" 
                                                    onchange="updateCompound(${c.id}, 'caco2', this.value)">
-                                        </div>
-                                        <div class="form-group">
-                                            <label>BCS Class ${createTooltip('bcsClass')}</label>
-                                            <select onchange="updateCompound(${c.id}, 'bcsClass', this.value)">
-                                                <option value="1" ${c.bcsClass === '1' ? 'selected' : ''}>Class I (고용해도/고투과성)</option>
-                                                <option value="2" ${c.bcsClass === '2' ? 'selected' : ''}>Class II (저용해도/고투과성)</option>
-                                                <option value="3" ${c.bcsClass === '3' ? 'selected' : ''}>Class III (고용해도/저투과성)</option>
-                                                <option value="4" ${c.bcsClass === '4' ? 'selected' : ''}>Class IV (저용해도/저투과성)</option>
-                                            </select>
                                         </div>
                                         <div class="form-group">
                                             <label>단백결합률 (%) <span class="opt">(선택)</span> ${createTooltip('proteinBinding')}</label>
@@ -392,6 +395,12 @@
                                             <label>간 CL (mL/min/kg) <span class="opt">(선택)</span> ${createTooltip('hepClearance')}</label>
                                             <input type="number" step="0.1" value="${c.hepClearance}" 
                                                    onchange="updateCompound(${c.id}, 'hepClearance', this.value)">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Vd (L/kg) <span class="opt">(고급)</span> ${createTooltip('vdInput')}</label>
+                                            <input type="number" step="0.1" value="${c.vdInput}" 
+                                                   onchange="updateCompound(${c.id}, 'vdInput', this.value)"
+                                                   placeholder="비워두면 자동 계산">
                                         </div>
                                     </div>
                                 </div>
@@ -526,130 +535,183 @@
                 const formEffect = formulationDB[c.formulation] || formulationDB['water'];
                 solubility *= formEffect.solFactor;
                 
-                // 투과성 - Caco-2 또는 BCS Class로부터
+                // === 3. 투과성 및 BCS Class 자동 판단 ===
                 let perm = 5.0;
+                let bcsClass = '2'; // 기본값
+                
                 if (c.caco2) {
                     perm = parseFloat(c.caco2);
                 } else {
-                    const bcsClass = c.bcsClass || '2';
-                    if (bcsClass === '1' || bcsClass === '2') perm = 15.0;
-                    else if (bcsClass === '3' || bcsClass === '4') perm = 2.0;
+                    // Caco-2 없으면 LogP로 추정
+                    if (logP > 3) perm = 10;
+                    else if (logP < 0) perm = 2;
                 }
+                
+                // BCS Class 자동 판단
+                const highSolubility = solubility > 100; // 100 μg/mL 기준
+                const highPermeability = perm > 5; // 5 × 10⁻⁶ cm/s 기준
+                
+                if (highSolubility && highPermeability) bcsClass = '1';
+                else if (!highSolubility && highPermeability) bcsClass = '2';
+                else if (highSolubility && !highPermeability) bcsClass = '3';
+                else bcsClass = '4';
                 
                 const logP = parseFloat(c.logP);
                 const logD = c.logD ? parseFloat(c.logD) : logP;
                 
-                // LogD를 사용한 투과성 보정
-                perm *= Math.pow(10, Math.min(logD * 0.35, 1.5));
-                
-                // 흡수율 - BCS Class 고려
+                // === 4. 생체이용률 (F) 계산 - 자동 판단된 BCS Class 사용 ===
                 let F = 0.5;
-                const bcsClass = c.bcsClass || '2';
                 
                 if (bcsClass === '1') {
                     F = 0.85;
                 } else if (bcsClass === '2') {
-                    if (solubility > 100) F = 0.75;
-                    else if (solubility > 10) F = 0.5;
-                    else if (solubility > 1) F = 0.3;
+                    if (solubility > 500) F = 0.75;
+                    else if (solubility > 100) F = 0.65;
+                    else if (solubility > 10) F = 0.45;
+                    else if (solubility > 1) F = 0.25;
                     else F = 0.15;
                 } else if (bcsClass === '3') {
-                    F = 0.45;
-                } else if (bcsClass === '4') {
+                    F = 0.5;
+                } else {
                     if (solubility > 10) F = 0.3;
-                    else if (solubility > 1) F = 0.2;
-                    else F = 0.1;
+                    else F = 0.15;
                 }
                 
-                if (logD > 4) F *= 0.85;
+                // 투과성에 따른 흡수율 보정
+                if (perm > 10) F *= 1.0;
+                else if (perm > 5) F *= 0.9;
+                else if (perm < 1) F *= 0.6;
                 
                 // 투여 부피 효과
                 if (c.doseVolume) {
                     const volume = parseFloat(c.doseVolume);
-                    if (volume > 15) F *= 1.1;
-                    else if (volume < 5) F *= 0.9;
+                    if (volume > 15) F *= 1.05;
+                    else if (volume < 5) F *= 0.95;
                 }
                 
-                // 초회통과 효과
-                let clh = 0;
+                // 클리어런스 계산 (간 CL 우선 사용)
+                let CL_total = species.CL; // 기본값
+                
                 if (c.hepClearance) {
-                    clh = parseFloat(c.hepClearance);
+                    // 입력된 간 CL 사용
+                    CL_total = parseFloat(c.hepClearance);
                 } else {
-                    clh = species.CL * (1 + logD * 0.1);
+                    // LogD 기반 추정
+                    CL_total = species.CL * (0.8 + logD * 0.15);
                 }
                 
-                if (clh > 0 && c.route === 'PO') {
-                    const liverFlow = 70;
-                    const extractionRatio = Math.min(clh / liverFlow, 0.9);
+                // 초회통과 효과 (경구 투여시)
+                if (c.route === 'PO') {
+                    const liverFlow = 70; // Rat 간혈류량 (mL/min/kg)
+                    const extractionRatio = Math.min(CL_total / liverFlow, 0.9);
                     F *= (1 - extractionRatio);
                 }
                 
                 if (c.route === 'IV') F = 1.0;
                 
-                // 분포용적 - LogD 기반
-                let Vd = species.Vd;
-                if (logD > 3) Vd *= (1 + (logD - 3) * 0.6);
-                else if (logD < 0) Vd *= 0.7;
-                
-                // 단백결합 효과
-                if (c.proteinBinding) {
-                    const pb = parseFloat(c.proteinBinding);
-                    const fu = (100 - pb) / 100;
-                    if (fu < 0.1) Vd *= 0.7;
-                }
-                
-                // 클리어런스
-                let CL = clh;
-                
-                const k_el = CL / Vd;
-                const t_half = 0.693 / k_el;
-                
-                // 흡수속도상수
-                let ka = species.ka * formEffect.kaFactor;
-                if (c.particleSize_D50) {
-                    const d50 = parseFloat(c.particleSize_D50);
-                    ka *= Math.pow(50 / d50, 0.5);
-                }
-                
-                // 농도 계산
-                const MW = parseFloat(c.molecularWeight);
-                const dose_mg = effectiveDose * species.bodyWeight * 1000;
-                const dose_umol = (dose_mg / MW) * 1000;
-                const dose_absorbed = dose_umol * F;
-                
-                const Vd_mL = Vd * species.bodyWeight * 1000;
-                const C0 = (dose_absorbed / Vd_mL) * MW;
-                
-                let profile = [];
-                for (let t = 0; t <= 24; t += 0.25) {
-                    let conc = 0;
-                    if (c.route === 'IV') {
-                        conc = C0 * Math.exp(-k_el * t);
-                    } else {
-                        conc = (C0 * ka / (ka - k_el)) * (Math.exp(-k_el * t) - Math.exp(-ka * t));
-                    }
-                    profile.push({ time: t, concentration: Math.max(conc, 0) });
-                }
-                
-                const Cmax = Math.max(...profile.map(p => p.concentration));
-                const Tmax = profile.find(p => p.concentration === Cmax)?.time || 0;
-                const AUC = profile.reduce((sum, p, i, arr) => {
-                    if (i === 0) return 0;
-                    return sum + (arr[i-1].concentration + p.concentration) * 0.25 / 2;
-                }, 0);
-                
-                // fu 계산 (결과 표시용)
+                // fu 계산
                 let fu = 0.1;
                 if (c.proteinBinding) {
                     fu = (100 - parseFloat(c.proteinBinding)) / 100;
                 } else {
                     fu = 1 / (1 + Math.pow(10, logD - 1.5));
                 }
+                fu = Math.max(0.001, Math.min(1.0, fu)); // 범위 제한
+                
+                // 분포용적 계산 - LogD와 fu 기반
+                let Vd = species.Vd;
+                
+                // 사용자 입력 Vd가 있으면 우선 사용
+                if (c.vdInput && parseFloat(c.vdInput) > 0) {
+                    Vd = parseFloat(c.vdInput);
+                } else {
+                    // 자동 계산
+                    // LogD 효과
+                    if (logD > 3) {
+                        Vd *= (1.0 + (logD - 3) * 0.4);
+                    } else if (logD < 1) {
+                        Vd *= 0.8;
+                    }
+                    
+                    // fu 효과 (단백결합이 높으면 Vd 감소)
+                    if (fu < 0.1) {
+                        Vd *= (0.5 + fu * 3); // fu=0.02일 때 Vd*0.56
+                    }
+                }
+                
+                // 제거속도상수 및 반감기
+                const k_el = CL_total / Vd / 60; // CL은 mL/min/kg, Vd는 L/kg이므로 단위 맞춤
+                const t_half = 0.693 / k_el;
+                
+                // 흡수속도상수 - 느린 흡수 반영
+                let ka = species.ka * formEffect.kaFactor;
+                
+                // Caco-2 기반 ka 조정
+                if (perm > 15) ka *= 1.2;
+                else if (perm < 5) ka *= 0.7;
+                
+                // 입자크기 효과
+                if (c.particleSize_D50) {
+                    const d50 = parseFloat(c.particleSize_D50);
+                    ka *= Math.pow(20 / d50, 0.3); // 입자가 작을수록 용해 빠름
+                }
+                
+                // 농도-시간 프로파일 계산
+                const MW = parseFloat(c.molecularWeight);
+                const dose_mg = effectiveDose * species.bodyWeight; // mg (1000 제거)
+                
+                let profile = [];
+                
+                if (c.route === 'IV') {
+                    // IV: 즉시 전신 순환
+                    const Vd_total_L = Vd * species.bodyWeight;
+                    const C0_ng_mL = (dose_mg * 1000) / Vd_total_L; // mg→μg 변환
+                    
+                    for (let t = 0; t <= 48; t += 0.25) {
+                        const conc = C0_ng_mL * Math.exp(-k_el * t);
+                        profile.push({ time: t, concentration: Math.max(conc, 0) });
+                    }
+                } else {
+                    // PO: Bateman 함수
+                    const dose_absorbed_mg = dose_mg * F;
+                    const Vd_total_L = Vd * species.bodyWeight;
+                    
+                    for (let t = 0; t <= 48; t += 0.25) {
+                        let conc = 0;
+                        
+                        if (ka !== k_el) {
+                            // 표준 1-compartment 경구 모델
+                            const C_factor = (dose_absorbed_mg * 1000) / Vd_total_L; // ng/mL
+                            conc = C_factor * (ka / (ka - k_el)) * (Math.exp(-k_el * t) - Math.exp(-ka * t));
+                        } else {
+                            const C_factor = (dose_absorbed_mg * 1000) / Vd_total_L;
+                            conc = C_factor * ka * t * Math.exp(-k_el * t);
+                        }
+                        
+                        profile.push({ time: t, concentration: Math.max(conc, 0) });
+                    }
+                }
+                
+                const Cmax = Math.max(...profile.map(p => p.concentration));
+                const Tmax = profile.find(p => p.concentration === Cmax)?.time || 0;
+                
+                // AUC 계산 (사다리꼴 법칙)
+                let AUC = 0;
+                for (let i = 1; i < profile.length; i++) {
+                    AUC += (profile[i-1].concentration + profile[i].concentration) * 0.25 / 2;
+                }
                 
                 c.pkResult = {
-                    params: { Cmax: Cmax.toFixed(2), Tmax: Tmax.toFixed(2), AUC: AUC.toFixed(2), 
-                              t_half: t_half.toFixed(2), F: (F * 100).toFixed(0), Vd: Vd.toFixed(2), 
-                              CL: CL.toFixed(2), fu: fu.toFixed(3) },
+                    params: { 
+                        Cmax: Cmax.toFixed(2), 
+                        Tmax: Tmax.toFixed(2), 
+                        AUC: AUC.toFixed(2), 
+                        t_half: t_half.toFixed(2), 
+                        bioavailability: (F * 100).toFixed(1), 
+                        Vd: Vd.toFixed(2), 
+                        CL: CL_total.toFixed(2), 
+                        freefraction: (fu * 100).toFixed(1)
+                    },
                     profile: profile
                 };
             });
@@ -676,16 +738,16 @@
                     <table class="comparison-table">
                         <thead>
                             <tr>
-                                <th>물질</th>
-                                <th>경로</th>
-                                <th>Cmax (ng/mL)</th>
-                                <th>Tmax (h)</th>
-                                <th>AUC (ng·h/mL)</th>
-                                <th>t½ (h)</th>
-                                <th>F (%)</th>
-                                <th>Vd (L/kg)</th>
-                                <th>CL (mL/min/kg)</th>
-                                <th>fu</th>
+                                <th>물질 ${createTooltip('compoundName')}</th>
+                                <th>경로 ${createTooltip('route')}</th>
+                                <th>Cmax (ng/mL) ${createTooltip('cmax')}</th>
+                                <th>Tmax (h) ${createTooltip('tmax')}</th>
+                                <th>AUC (ng·h/mL) ${createTooltip('auc')}</th>
+                                <th>t½ (h) ${createTooltip('halflife')}</th>
+                                <th>생체이용률 (%) ${createTooltip('bioavailability')}</th>
+                                <th>Vd (L/kg) ${createTooltip('vd')}</th>
+                                <th>CL (mL/min/kg) ${createTooltip('clearance')}</th>
+                                <th>유리분율 (%) ${createTooltip('freefraction')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -697,10 +759,10 @@
                                     <td>${c.pkResult.params.Tmax}</td>
                                     <td>${c.pkResult.params.AUC}</td>
                                     <td>${c.pkResult.params.t_half}</td>
-                                    <td>${c.pkResult.params.F}</td>
+                                    <td>${c.pkResult.params.bioavailability}</td>
                                     <td>${c.pkResult.params.Vd}</td>
                                     <td>${c.pkResult.params.CL}</td>
-                                    <td>${c.pkResult.params.fu}</td>
+                                    <td>${c.pkResult.params.freefraction}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -719,7 +781,7 @@
                                 <th>물질</th>
                                 <th>상대 Cmax</th>
                                 <th>상대 AUC</th>
-                                <th>상대 F</th>
+                                <th>상대 생체이용률</th>
                                 <th>해석</th>
                             </tr>
                         </thead>
@@ -728,7 +790,7 @@
                                 const ref = calc[0].pkResult.params;
                                 const cmaxR = (parseFloat(c.pkResult.params.Cmax) / parseFloat(ref.Cmax) * 100).toFixed(0);
                                 const aucR = (parseFloat(c.pkResult.params.AUC) / parseFloat(ref.AUC) * 100).toFixed(0);
-                                const fR = (parseFloat(c.pkResult.params.F) / parseFloat(ref.F) * 100).toFixed(0);
+                                const fR = (parseFloat(c.pkResult.params.bioavailability) / parseFloat(ref.bioavailability) * 100).toFixed(0);
                                 
                                 let interpretation = '';
                                 if (idx > 0) {
