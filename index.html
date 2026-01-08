@@ -144,9 +144,26 @@
         let currentStep = 1, compounds = [], selectedSpecies = 'rat', chartInstance = null, alerts = [];
         const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
         
-        const speciesSettings = {
-            rat: { bodyWeight: 0.25, Vd: 3.5, CL: 50, ka: 1.2, label: '🐀 Rat' },
-            dog: { bodyWeight: 10, Vd: 2.0, CL: 25, ka: 0.8, label: '🐕 Dog (Beagle)' }
+        // 종별 기본값 (사용자 수정 가능)
+        let speciesSettings = {
+            rat: { 
+                bodyWeight: 0.25,  // kg
+                baseVd: 3.5,       // L/kg
+                baseCL: 50,        // mL/min/kg
+                label: '🐀 Rat'
+            },
+            dog: { 
+                bodyWeight: 10,
+                baseVd: 2.0,
+                baseCL: 25,
+                label: '🐕 Dog (Beagle)'
+            }
+        };
+        
+        // 종별 고정 파라미터 (내부 계산용)
+        const speciesConstants = {
+            rat: { baseKa: 1.2, liverFlow: 70 },
+            dog: { baseKa: 0.8, liverFlow: 55 }
         };
 
         const formulationDB = {
@@ -185,7 +202,10 @@
             bioavailability: '생체이용률 (Bioavailability)<br>투여된 약물이 전신순환에 도달하는 비율<br>단위: %<br>경구 투여시 초회통과효과로 감소',
             vd: 'Vd: 분포용적<br>약물이 체내에 분포하는 가상 부피<br>단위: L/kg<br>친유성 약물일수록 크고, 단백결합이 높으면 작음',
             clearance: 'CL: 클리어런스<br>단위시간당 약물이 제거되는 혈액 부피<br>단위: mL/min/kg<br>간/신장 대사 및 배설 속도 반영',
-            freefraction: '유리분율 (Free Fraction)<br>혈장 단백질에 결합하지 않은 약물의 비율<br>단위: %<br>약효를 나타내는 실제 활성 약물의 양'
+            freefraction: '유리분율 (Free Fraction)<br>혈장 단백질에 결합하지 않은 약물의 비율<br>단위: %<br>약효를 나타내는 실제 활성 약물의 양',
+            speciesBodyWeight: '실험 동물의 평균 체중<br>단위: kg<br>• Rat: 보통 0.2-0.3 kg<br>• Dog: 보통 8-12 kg<br>총 투여량 계산에 사용됩니다',
+            speciesVd: '종별 기본 분포용적<br>단위: L/kg<br>약물이 체내에 분포하는 정도의 기준값<br>• Rat: 2.5-4.0 L/kg<br>• Dog: 1.5-2.5 L/kg<br><strong>LogD와 단백결합 입력 시 자동 조정</strong>',
+            speciesCL: '종별 기본 클리어런스<br>단위: mL/min/kg<br>약물 제거 속도의 기준값<br>• Rat: 40-60 mL/min/kg (대사 빠름)<br>• Dog: 20-30 mL/min/kg<br><strong>간CL 입력 시 해당 값 우선 사용</strong>'
         };
 
         function createTooltip(key) {
@@ -198,6 +218,12 @@
             document.getElementById('alerts').innerHTML = alerts.map(a => 
                 `<div class="alert alert-${a.type}"><strong>${a.type === 'success' ? '✅' : a.type === 'error' ? '❌' : a.type === 'warning' ? '⚠️' : 'ℹ️'}</strong> ${a.msg}</div>`
             ).join('');
+        }
+        
+        // 종 파라미터 업데이트 함수
+        function updateSpeciesParam(species, param, value) {
+            speciesSettings[species][param] = parseFloat(value);
+            // 자동 저장됨 - 별도 알림 불필요
         }
 
         function addCompound() {
@@ -482,20 +508,55 @@
         function renderStep2() {
             return `
                 <div class="section">
-                    <h2>🐾 동물 종 선택</h2>
+                    <h2>🐾 동물 종 선택 및 설정</h2>
                     <div class="help-box" style="margin-bottom: 16px;">
-                        예측할 동물 종을 선택하세요. 각 종마다 체중, 약동학 파라미터가 다르게 적용됩니다.
+                        예측할 동물 종을 선택하고, 필요시 종별 파라미터를 직접 조정할 수 있습니다.
                     </div>
                     
-                    <div class="route-grid">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                         ${Object.entries(speciesSettings).map(([key, val]) => `
                             <div class="route-btn ${selectedSpecies === key ? 'selected' : ''}" 
-                                 onclick="selectedSpecies='${key}'; render();">
-                                <div style="font-size: 24px; margin-bottom: 4px;">${val.label.split(' ')[0]}</div>
-                                <div style="font-size: 12px;">${val.label.split(' ').slice(1).join(' ')}</div>
-                                <div style="font-size: 10px; color: #6b7280; margin-top: 4px;">
-                                    BW: ${val.bodyWeight} kg<br>
-                                    Vd: ${val.Vd} L/kg
+                                 onclick="selectedSpecies='${key}'; render();"
+                                 style="padding: 20px; cursor: pointer; height: auto;">
+                                
+                                <!-- 종 헤더 -->
+                                <div style="text-align: center; padding-bottom: 16px; border-bottom: 2px solid ${selectedSpecies === key ? '#3b82f6' : '#e5e7eb'};">
+                                    <div style="font-size: 32px; margin-bottom: 8px;">${val.label.split(' ')[0]}</div>
+                                    <div style="font-size: 14px; font-weight: 600;">${val.label.split(' ').slice(1).join(' ')}</div>
+                                </div>
+                                
+                                <!-- 파라미터 입력 -->
+                                <div onclick="event.stopPropagation();" style="margin-top: 16px;">
+                                    <div style="margin-bottom: 12px;">
+                                        <label style="font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                                            체중 (kg) ${createTooltip('speciesBodyWeight')}
+                                        </label>
+                                        <input type="number" step="0.01" value="${val.bodyWeight}" 
+                                               onchange="updateSpeciesParam('${key}', 'bodyWeight', this.value)"
+                                               style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+                                    </div>
+                                    
+                                    <div style="margin-bottom: 12px;">
+                                        <label style="font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                                            기본 Vd (L/kg) ${createTooltip('speciesVd')}
+                                        </label>
+                                        <input type="number" step="0.1" value="${val.baseVd}" 
+                                               onchange="updateSpeciesParam('${key}', 'baseVd', this.value)"
+                                               style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+                                    </div>
+                                    
+                                    <div style="margin-bottom: 8px;">
+                                        <label style="font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                                            기본 CL (mL/min/kg) ${createTooltip('speciesCL')}
+                                        </label>
+                                        <input type="number" step="0.1" value="${val.baseCL}" 
+                                               onchange="updateSpeciesParam('${key}', 'baseCL', this.value)"
+                                               style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+                                    </div>
+                                    
+                                    <div style="font-size: 10px; color: #6b7280; padding: 8px; background: ${selectedSpecies === key ? '#eff6ff' : '#f9fafb'}; border-radius: 4px; margin-top: 8px;">
+                                        💡 Vd/CL은 기본값이며 LogD, 단백결합, 간CL 입력 시 자동 조정됩니다
+                                    </div>
                                 </div>
                             </div>
                         `).join('')}
@@ -593,19 +654,19 @@
                 }
                 
                 // 클리어런스 계산 (간 CL 우선 사용)
-                let CL_total = species.CL; // 기본값
+                let CL_total = species.baseCL; // 기본값
                 
                 if (c.hepClearance) {
                     // 입력된 간 CL 사용
                     CL_total = parseFloat(c.hepClearance);
                 } else {
                     // LogD 기반 추정
-                    CL_total = species.CL * (0.8 + logD * 0.15);
+                    CL_total = species.baseCL * (0.8 + logD * 0.15);
                 }
                 
                 // 초회통과 효과 (경구 투여시)
                 if (c.route === 'PO') {
-                    const liverFlow = 70; // Rat 간혈류량 (mL/min/kg)
+                    const liverFlow = speciesConstants[selectedSpecies].liverFlow;
                     const extractionRatio = Math.min(CL_total / liverFlow, 0.9);
                     F *= (1 - extractionRatio);
                 }
@@ -622,7 +683,7 @@
                 fu = Math.max(0.001, Math.min(1.0, fu)); // 범위 제한
                 
                 // 분포용적 계산 - LogD와 fu 기반
-                let Vd = species.Vd;
+                let Vd = species.baseVd;
                 
                 // 사용자 입력 Vd가 있으면 우선 사용
                 if (c.vdInput && parseFloat(c.vdInput) > 0) {
@@ -647,7 +708,7 @@
                 const t_half = 0.693 / k_el;
                 
                 // 흡수속도상수 - 느린 흡수 반영
-                let ka = species.ka * formEffect.kaFactor;
+                let ka = speciesConstants[selectedSpecies].baseKa * formEffect.kaFactor;
                 
                 // Caco-2 기반 ka 조정
                 if (perm > 15) ka *= 1.2;
